@@ -53,3 +53,33 @@
 - **Chose:** Explicit instructor/course, learner/enrollment, lesson/course, and progress/enrollment foreign keys.
 - **Rejected:** Trusting IDs, roles, or ownership supplied by the frontend.
 - **Why:** Later services can scope every access to the authenticated user and prevent cross-instructor/cross-learner access.
+
+## 10. Argon2id hashes passwords
+
+- **Chose:** `argon2` using Argon2id for `User.passwordHash`.
+- **Rejected:** Plaintext/reversible passwords and bcrypt without a compatibility need.
+- **Why:** Argon2id is a current password-hashing algorithm and runs successfully with the project’s Node.js setup.
+
+## 11. Cookie sessions carry server-established identity
+
+- **Chose:** Signed, HTTP-only `express-session` cookies with a server-side session containing only user ID; authentication reloads the user from the repository.
+- **Rejected:** JWT/localStorage tokens and client-held role/user identity.
+- **Why:** Browser JavaScript cannot read the cookie, and each protected request obtains current server-side role data. MemoryStore is documented as development-only.
+
+## 12. Public signup creates learners only
+
+- **Chose:** `/api/auth/signup` accepts only `LEARNER`; an attempted `INSTRUCTOR` role is rejected.
+- **Rejected:** Unrestricted public instructor registration.
+- **Why:** A client-selected instructor role would be privilege escalation. Instructor accounts must be provisioned through a controlled future operational path.
+
+## 13. Authentication and authorization use different status codes
+
+- **Chose:** 401 for missing/invalid session and 403 for an authenticated role mismatch.
+- **Rejected:** Returning 403 for every denied request or trusting frontend route state.
+- **Why:** Clients can distinguish login needs from permission limits without exposing passwords, hashes, or internals.
+
+## 14. Credentialed CORS is explicit
+
+- **Chose:** Configure one `CLIENT_ORIGIN` with credentials and production-only secure cookies.
+- **Rejected:** `Access-Control-Allow-Origin: *` with cookies or hard-coded deployment URLs.
+- **Why:** Cookies require a deliberate browser trust boundary that works for local development and configurable deployments.

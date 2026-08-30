@@ -20,8 +20,28 @@ PostgreSQL
 
 Prisma owns persistence mapping and database constraints. PostgreSQL holds the relational core, including foreign keys and uniqueness. An initial migration is not yet present or applied because a real development PostgreSQL connection has not been configured.
 
+Authentication now follows this request path:
+
+```text
+React auth form / API client
+  ↓ (credentialed fetch)
+Authentication API
+  ↓ (Argon2id verify and session regeneration)
+HTTP-only signed session cookie
+  ↓ (next request)
+requireAuth loads server-side user identity
+  ↓
+requireRole verifies stored role
+  ↓
+Future ownership/enrollment business authorization
+  ↓
+Prisma / PostgreSQL
+```
+
+The cookie carries only a session identifier; the in-memory development session stores only a user ID. `requireAuth` reloads safe user data from the repository on each protected request, so roles and identity never come from the frontend. The server requires a 32+ character `SESSION_SECRET`; production also refuses to start without `CLIENT_ORIGIN`. Session cookies are `HttpOnly`, `SameSite=Lax`, seven-day cookies and use `Secure` in production. CORS permits only `CLIENT_ORIGIN` and credentials, never wildcard origin with credentials.
+
 ## Planned
 
-Authentication will establish server-side identity. API/service code will use that identity for role, ownership, and enrollment checks; frontend-submitted roles or IDs will never authorize an action. The service layer will derive and update enrollment progress from lesson progress, perform reorder transactions, and enforce activity immutability.
+Future API/service code will use the established server-side identity for ownership and enrollment checks; frontend-submitted roles or IDs will never authorize an action. The service layer will derive and update enrollment progress from lesson progress, perform reorder transactions, and enforce activity immutability. The current `express-session` MemoryStore is intentionally development-only and must be replaced with persistent session storage before horizontally scaled production deployment.
 
-Catalogue filtering, searching, sorting, pagination, and total counts will remain server/database queries. No business APIs, UI flows, authentication, authorization, activity behavior, comments, alerts, CSV processing, or analytics has been implemented.
+Catalogue filtering, searching, sorting, pagination, and total counts will remain server/database queries. No business APIs, course UI flows, activity behavior, comments, alerts, CSV processing, or analytics has been implemented.

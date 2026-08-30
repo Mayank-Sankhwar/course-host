@@ -31,3 +31,35 @@ No `DATABASE_URL` was available, so no migration was created or applied. Prisma 
 ### Scope confirmation
 
 No application business functionality was implemented.
+
+## Authentication and authorization foundation
+
+### Prompt
+
+The user requested the CourseHost authentication-only phase: signup, login/logout, Argon2id-compatible hashing, HTTP-only cookie session, reusable authentication/role middleware, current-user endpoint, minimal authentication UI, focused tests, CORS configuration, documentation, and no Git history changes or course-related functionality.
+
+### What changed
+
+Added server authentication modules, Prisma-backed repository boundary, Argon2id password hashing, Express cookie sessions, `/api/auth/signup`, `/login`, `/logout`, and `/me`, reusable `requireAuth`/`requireRole` middleware, in-memory test support, focused API tests, and the minimal client auth form/API client.
+
+### Verification and limitations
+
+Type checking, six focused authentication tests, build, Prisma validation, and Prisma client generation were run. Tests intentionally use an in-memory repository because no PostgreSQL database/migration is available. Production authentication requires `DATABASE_URL`, a migrated database, a strong `SESSION_SECRET`, and replacement of the in-memory session store for multi-instance deployment. `npm audit` currently reports three high-severity transitive Prisma CLI findings; its automated remedy is a forced incompatible Prisma change, so it was not applied.
+
+### Scope confirmation
+
+No course, lesson, enrollment, comment, dashboard, alert, CSV, catalogue, or other business functionality was implemented.
+
+## Authentication/authorization self-review
+
+### Prompt
+
+The user requested a security review of the authentication and authorization foundation, focused on password handling, normalized email, signup-role escalation, session/CORS/environment configuration, middleware, frontend credential handling, focused test coverage, dependency use, documentation accuracy, and no Git history changes.
+
+### What changed
+
+The review found and fixed two configuration defects: production now refuses to start if `CLIENT_ORIGIN` is absent, and the session-secret example is empty so copying it cannot start the server with a known placeholder. The `/me` test assertion now explicitly checks the reloaded server-side user fields.
+
+### Verification and scope
+
+Focused auth tests, type checking, build, Prisma validation, and client generation were re-run. PostgreSQL-backed runtime testing remains blocked by the missing database and migration. No business features or Git history operations were performed.
