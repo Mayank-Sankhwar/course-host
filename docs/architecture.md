@@ -40,8 +40,26 @@ Prisma / PostgreSQL
 
 The cookie carries only a session identifier; the in-memory development session stores only a user ID. `requireAuth` reloads safe user data from the repository on each protected request, so roles and identity never come from the frontend. The server requires a 32+ character `SESSION_SECRET`; production also refuses to start without `CLIENT_ORIGIN`. Session cookies are `HttpOnly`, `SameSite=Lax`, seven-day cookies and use `Secure` in production. CORS permits only `CLIENT_ORIGIN` and credentials, never wildcard origin with credentials.
 
+Instructor course requests now follow this path:
+
+```text
+Minimal instructor course UI
+  ↓
+Course API
+  ↓
+requireAuth → requireRole(INSTRUCTOR)
+  ↓
+Course ownership check / authenticated instructor query scope
+  ↓
+Course validation and server-owned DRAFT status
+  ↓
+Prisma → PostgreSQL
+```
+
+Course creation derives `instructorId` from `request.authUser.id`; it never accepts an ownership ID or initial status from the browser. Read/update operations load the requested course and return 403 for an existing course owned by another instructor, while a missing course returns 404. List queries always apply the instructor scope in Prisma before optional search/category/status filters, whitelisted sorting, and database-level pagination.
+
 ## Planned
 
 Future API/service code will use the established server-side identity for ownership and enrollment checks; frontend-submitted roles or IDs will never authorize an action. The service layer will derive and update enrollment progress from lesson progress, perform reorder transactions, and enforce activity immutability. The current `express-session` MemoryStore is intentionally development-only and must be replaced with persistent session storage before horizontally scaled production deployment.
 
-Catalogue filtering, searching, sorting, pagination, and total counts will remain server/database queries. No business APIs, course UI flows, activity behavior, comments, alerts, CSV processing, or analytics has been implemented.
+Learner catalogue filtering and enrollment-count sorting remain planned. No lesson, publishing, archiving, restoring, enrollment, activity behavior, comments, alerts, CSV processing, or analytics has been implemented.

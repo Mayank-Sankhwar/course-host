@@ -146,6 +146,17 @@ Alongside your code, commit these five files under `docs/`. Your zip includes a 
 
 ## Host it for free
 
+## Local development seed
+
+With a local PostgreSQL `DATABASE_URL` configured and migrations applied, run `npx prisma db seed` to create or refresh the two deterministic **development-only** instructor accounts. The seed is idempotent, does not delete existing data, and refuses to run when `NODE_ENV=production`.
+
+| Role | Email | Development-only password |
+|---|---|---|
+| Instructor | instructor.a@coursehost.local | CourseHostDev123! |
+| Instructor | instructor.b@coursehost.local | CourseHostDev123! |
+
+These credentials are only for local API/demo testing. Never use them in a deployed production environment.
+
 Deploy the whole thing somewhere reachable by URL, using free tiers only.
 
 One combination that works, if you would rather not decide:

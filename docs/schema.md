@@ -39,3 +39,7 @@ The database enforces foreign keys, enum values, unique email/enrollment/progres
 `LessonProgress` state is timestamp-derived: no row means not started; a started-but-uncompleted row is in progress; a completed timestamp means completed. Course percentage and state are calculated from the current lessons plus their progress, so no completed count, total count, or percentage is persisted. This handles additions/deletions/reordering correctly.
 
 There is no `CourseVisit`, persistent `Alert`, course-material, or lesson-discussion table. Visits do not equal learner progress; alert eligibility will be queried from progress timestamps and compared with `AlertDismissal.dismissedAt`.
+
+## Course CRUD phase note
+
+Course CRUD used the existing `Course` model unchanged. No migration or schema correction was needed: its `instructorId`, `status`, content fields, timestamps, and ownership index already support this phase.

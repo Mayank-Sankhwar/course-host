@@ -4,18 +4,23 @@ import session from 'express-session';
 import { createAuthRouter } from './auth/routes.js';
 import { authUserRepository } from './auth/repository.js';
 import type { AuthUserRepository } from './auth/types.js';
+import { createCourseRouter } from './courses/routes.js';
+import { courseRepository } from './courses/repository.js';
+import type { CourseRepository } from './courses/types.js';
 
 type AppOptions = {
   clientOrigin: string;
   isProduction: boolean;
   sessionSecret: string;
   userRepository?: AuthUserRepository;
+  courseRepository?: CourseRepository;
   registerRoutes?: (app: express.Express) => void;
 };
 
 export function createApp(options: AppOptions) {
   const app = express();
   const users = options.userRepository ?? authUserRepository;
+  const courses = options.courseRepository ?? courseRepository;
 
   app.use(cors({ origin: options.clientOrigin, credentials: true }));
   app.use(express.json());
@@ -36,6 +41,7 @@ export function createApp(options: AppOptions) {
     response.status(200).json({ status: 'ok' });
   });
   app.use('/api/auth', createAuthRouter(users));
+  app.use('/api/courses', createCourseRouter(users, courses));
   options.registerRoutes?.(app);
 
   app.use((_request, response) => {

@@ -83,3 +83,33 @@
 - **Chose:** Configure one `CLIENT_ORIGIN` with credentials and production-only secure cookies.
 - **Rejected:** `Access-Control-Allow-Origin: *` with cookies or hard-coded deployment URLs.
 - **Why:** Cookies require a deliberate browser trust boundary that works for local development and configurable deployments.
+
+## 15. New courses are always drafts
+
+- **Chose:** The server explicitly writes `DRAFT` on creation and rejects request fields other than title, description, and category.
+- **Rejected:** Letting the client choose `PUBLISHED`/`ARCHIVED` or silently trusting a status field.
+- **Why:** Publishing requires lesson validation in a later phase; creation cannot bypass that lifecycle rule.
+
+## 16. Course ownership is enforced per request
+
+- **Chose:** Derive `instructorId` from authenticated identity, scope list queries by it, and return 403 when another instructor accesses a known course.
+- **Rejected:** Request-body/query ownership IDs or frontend-only filtering.
+- **Why:** It prevents cross-instructor access while still distinguishing a genuinely missing course (404) from an ownership violation (403).
+
+## 17. Metadata edits preserve lifecycle status
+
+- **Chose:** `PATCH` permits only title, description, and category; it rejects status/instructor/id fields.
+- **Rejected:** Combining edits with status transitions.
+- **Why:** Editing published or archived metadata must not silently alter lifecycle state.
+
+## 18. Instructor lists are database-paginated and deterministic
+
+- **Chose:** Prisma-filtered queries with bounded page size, total count, stable ID secondary order, and a `title`/`createdAt` sort whitelist.
+- **Rejected:** Browser-side filtering/pagination or arbitrary `orderBy` query values.
+- **Why:** Ownership stays server-enforced and pagination remains stable. Enrollment-count sorting is deferred until enrollment data exists.
+
+## 19. Development instructors are explicitly seeded
+
+- **Chose:** A manually invoked, idempotent Prisma seed upserts two local-development instructors.
+- **Rejected:** Public instructor signup or automatically creating privileged users when the server starts.
+- **Why:** Public signup remains learner-only to prevent privilege escalation; the seed is an explicit, development-only route to create repeatable API/demo accounts.
