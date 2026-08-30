@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+.next/
+target/
+__pycache__/
+venv/
+.env
+.env.local
+.env.*.local
+*.tsbuildinfo
+*.log
+.DS_Store
+.idea/
+.vscode/

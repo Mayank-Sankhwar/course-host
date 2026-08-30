@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  INSTRUCTOR
+  LEARNER
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EnrollmentProgressState {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ActivityType {
+  COURSE_CREATED
+  COURSE_UPDATED
+  COURSE_PUBLISHED
+  COURSE_ARCHIVED
+  COURSE_RESTORED
+  LESSON_CREATED
+  LESSON_UPDATED
+  LESSON_DELETED
+  LESSON_REORDERED
+  LEARNER_ENROLLED
+  LESSON_COMPLETED
+  COMMENT_CREATED
+}
+
+model User {
+  id              String           @id @default(cuid())
+  email           String           @unique
+  passwordHash    String
+  role            Role
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  ownedCourses    Course[]         @relation("CourseInstructor")
+  enrollments     Enrollment[]     @relation("EnrollmentLearner")
+  comments        Comment[]
+  activityRecords ActivityLog[]    @relation("ActivityActor")
+  alertDismissals AlertDismissal[] @relation("AlertDismissalLearner")
+}
+
+model Course {
+  id              String           @id @default(cuid())
+  instructorId    String
+  title           String
+  description     String
+  category        String
+  status          CourseStatus     @default(DRAFT)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  instructor      User             @relation("CourseInstructor", fields: [instructorId], references: [id], onDelete: Restrict)
+  lessons         Lesson[]
+  enrollments     Enrollment[]
+  comments        Comment[]
+  activityLog     ActivityLog[]
+  alertDismissals AlertDismissal[]
+
+  @@index([instructorId])
+  @@index([status])
+  @@index([category])
+}
+
+model Lesson {
+  id        String           @id @default(cuid())
+  courseId  String
+  title     String
+  content   String
+  position  Int
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  course    Course           @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  progress  LessonProgress[]
+
+  @@unique([courseId, position])
+  @@index([courseId])
+}
+
+model Enrollment {
+  id             String                  @id @default(cuid())
+  learnerId      String
+  courseId       String
+  progressState  EnrollmentProgressState @default(NOT_STARTED)
+  enrolledAt     DateTime                @default(now())
+  completedAt    DateTime?
+  updatedAt      DateTime                @updatedAt
+  learner        User                    @relation("EnrollmentLearner", fields: [learnerId], references: [id], onDelete: Restrict)
+  course         Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  lessonProgress LessonProgress[]
+
+  @@unique([learnerId, courseId])
+  @@index([courseId])
+}
+
+model LessonProgress {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  lessonId     String
+  startedAt    DateTime?
+  completedAt  DateTime?
+  updatedAt    DateTime   @updatedAt
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson       Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, lessonId])
+  @@index([lessonId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  courseId  String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([courseId])
+}
+
+model ActivityLog {
+  id        String       @id @default(cuid())
+  courseId  String
+  actorId   String?
+  type      ActivityType
+  details   Json?
+  createdAt DateTime     @default(now())
+  course    Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  actor     User?        @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([courseId, createdAt])
+}
+
+model AlertDismissal {
+  id          String   @id @default(cuid())
+  courseId    String
+  learnerId   String
+  dismissedAt DateTime @default(now())
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  learner     User     @relation("AlertDismissalLearner", fields: [learnerId], references: [id], onDelete: Restrict)
+
+  @@unique([courseId, learnerId])
+  @@index([learnerId])
+}

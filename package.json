@@ -1,0 +1,20 @@
+{
+  "name": "busy-course-delivery",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=@busy/client && npm run build --workspace=@busy/server",
+    "dev:client": "npm run dev --workspace=@busy/client",
+    "dev:server": "npm run dev --workspace=@busy/server",
+    "typecheck": "npm run typecheck --workspace=@busy/client && npm run typecheck --workspace=@busy/server",
+    "test": "npm run test --workspaces --if-present",
+    "prisma:validate": "prisma validate",
+    "prisma:generate": "prisma generate"
+  },
+  "devDependencies": {
+    "prisma": "^6.14.0"
+  }
+}
