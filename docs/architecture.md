@@ -58,6 +58,22 @@ Prisma → PostgreSQL
 
 Course creation derives `instructorId` from `request.authUser.id`; it never accepts an ownership ID or initial status from the browser. Read/update operations load the requested course and return 403 for an existing course owned by another instructor, while a missing course returns 404. List queries always apply the instructor scope in Prisma before optional search/category/status filters, whitelisted sorting, and database-level pagination.
 
+Instructor lesson management follows the same ownership boundary:
+
+```text
+Instructor lesson manager
+  ↓ (complete ordered lesson IDs for reorder)
+Lesson API
+  ↓
+requireAuth → requireRole(INSTRUCTOR) → course ownership check
+  ↓
+Transactional lesson repository
+  ↓
+Prisma → PostgreSQL
+```
+
+`Lesson.id` is permanent identity; `position` is only instructor-defined display order. New lessons append at the end. Delete and reorder use serializable transactions and first move affected positions above the current range before assigning contiguous final positions, preserving the database unique `(courseId, position)` constraint. Deleting a lesson relies on the existing foreign-key cascade to remove only that lesson's `LessonProgress` records.
+
 ## Planned
 
 Future API/service code will use the established server-side identity for ownership and enrollment checks; frontend-submitted roles or IDs will never authorize an action. The service layer will derive and update enrollment progress from lesson progress, perform reorder transactions, and enforce activity immutability. The current `express-session` MemoryStore is intentionally development-only and must be replaced with persistent session storage before horizontally scaled production deployment.

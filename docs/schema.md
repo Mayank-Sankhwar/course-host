@@ -43,3 +43,7 @@ There is no `CourseVisit`, persistent `Alert`, course-material, or lesson-discus
 ## Course CRUD phase note
 
 Course CRUD used the existing `Course` model unchanged. No migration or schema correction was needed: its `instructorId`, `status`, content fields, timestamps, and ownership index already support this phase.
+
+## Lesson-management phase note
+
+Lesson management used the existing `Lesson` and `LessonProgress` schema unchanged. `Lesson.id` remains the stable progress reference while `position` is mutable ordering within a course. The database enforces unique `(courseId, position)`. The `LessonProgress.lessonId` foreign key uses `onDelete: Cascade`, so deletion removes only progress for the deleted lesson; course, enrollment, remaining lessons, and their progress remain intact.

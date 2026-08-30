@@ -92,6 +92,20 @@ Expanded the existing course API test suite to cover unauthenticated/learner rea
 
 The expanded verification command was blocked before execution by the Codex environment’s usage-limit approval rejection, not by project output. Earlier in the course phase, the 11-test suite, typecheck, build, Prisma validation, and Prisma client generation had passed. PostgreSQL-backed integration testing remains unavailable because no database/migration has been configured.
 
+## Instructor lesson management
+
+### Prompt
+
+The user requested only instructor lesson create/read/update/delete/reorder functionality, server-side course ownership, stable lesson IDs, append-only creation, contiguous positions, final-lesson protection, complete-set reorder validation, transactional ordering, real PostgreSQL integration tests including LessonProgress cascade behavior, minimal UI, documentation, and no Git history changes or future product features.
+
+### What changed
+
+Added lesson validation, transactional Prisma repository, nested course lesson routes, a real PostgreSQL API integration suite with scoped cleanup, and a minimal instructor lesson manager. It uses complete lesson ID arrays for reorder and preserves IDs/progress references while changing positions.
+
+### Verification and limitations
+
+All 17 tests passed, including six real-PostgreSQL lesson integration tests. Typecheck, build, Prisma validation, migration status, and diff check passed. Prisma client generation was attempted but blocked by a Windows `EPERM` lock on the generated engine file while local Node processes were active. No schema migration was required.
+
 ## Development instructor seed
 
 ### Prompt

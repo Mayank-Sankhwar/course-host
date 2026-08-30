@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { courseApi, type Course } from './course-api';
+import { LessonManager } from './lesson-manager';
 
 const emptyCourse = { title: '', description: '', category: '' };
 
@@ -7,6 +8,7 @@ export function CourseManager() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [form, setForm] = useState(emptyCourse);
   const [editing, setEditing] = useState<Course | null>(null);
+  const [lessonCourse, setLessonCourse] = useState<Course | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function loadCourses() {
@@ -51,8 +53,9 @@ export function CourseManager() {
       </form>
       {error && <p role="alert">{error}</p>}
       <ul>
-        {courses.map((course) => <li key={course.id}><strong>{course.title}</strong> — {course.status} <button onClick={() => edit(course)}>Edit</button></li>)}
+        {courses.map((course) => <li key={course.id}><strong>{course.title}</strong> — {course.status} <button onClick={() => edit(course)}>Edit</button> <button onClick={() => setLessonCourse(course)}>Manage lessons</button></li>)}
       </ul>
+      {lessonCourse && <LessonManager courseId={lessonCourse.id} courseTitle={lessonCourse.title} />}
     </section>
   );
 }

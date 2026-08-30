@@ -113,3 +113,33 @@
 - **Chose:** A manually invoked, idempotent Prisma seed upserts two local-development instructors.
 - **Rejected:** Public instructor signup or automatically creating privileged users when the server starts.
 - **Why:** Public signup remains learner-only to prevent privilege escalation; the seed is an explicit, development-only route to create repeatable API/demo accounts.
+
+## 20. Lesson identity is permanent; position is ordering only
+
+- **Chose:** Keep the existing permanent `Lesson.id` and update only `position` for reorder.
+- **Rejected:** Recreating lessons, using array index as identity, or treating position as a progress key.
+- **Why:** Future lesson progress references lesson IDs and must survive content edits, deletion of other lessons, and reordering.
+
+## 21. New lessons append; metadata updates cannot reorder
+
+- **Chose:** Create at next position and allow only title/content through normal lesson updates.
+- **Rejected:** Client-selected creation positions or accepting position/course/ID changes in metadata requests.
+- **Why:** It keeps ordering predictable and reserves all position changes for a fully validated reorder operation.
+
+## 22. A course cannot lose its final lesson
+
+- **Chose:** Server-side deletion rejects the final lesson; otherwise deletion normalizes positions to `1..N`.
+- **Rejected:** Frontend-only disablement, leaving ordering gaps, or allowing an empty formerly populated course.
+- **Why:** The course remains structurally usable and the invariant holds regardless of client behavior.
+
+## 23. Reorder receives the complete lesson ID set
+
+- **Chose:** The API accepts a complete ordered `lessonIds` array and verifies it exactly matches the course's current IDs.
+- **Rejected:** Individual untrusted position updates or partial reorder payloads.
+- **Why:** It rejects missing, duplicate, extra, and foreign-course IDs before positions change.
+
+## 24. Delete and reorder are serializable transactions
+
+- **Chose:** Temporarily move affected positions above the current maximum, then assign contiguous final positions inside a serializable Prisma transaction with retry for transactional conflicts.
+- **Rejected:** Independent updates that can transiently violate unique `(courseId, position)`.
+- **Why:** Partial failure cannot leave duplicate/gapped final order, and lesson IDs/progress links remain untouched during reorder.
