@@ -191,3 +191,33 @@
 - **Chose:** Calculate completed/total/percentage and state from the current course lessons plus their `LessonProgress` rows.
 - **Rejected:** Persisted percentages, array-index matching, or creating rows for every not-started lesson.
 - **Why:** Adding a lesson naturally reduces a formerly complete course; deleting a lesson's cascaded progress no longer affects the result.
+
+## 33. The learner catalogue has one extended route
+
+- **Chose:** Extend authenticated learner `GET /api/available-courses` into the full catalogue.
+- **Rejected:** Adding another competing learner-catalogue endpoint.
+- **Why:** The existing route already represented published courses, so it is the clearest stable API contract.
+
+## 34. Catalogue visibility is enforced before user filters
+
+- **Chose:** Learner queries always include database `status = PUBLISHED`; instructor queries always include session-derived ownership.
+- **Rejected:** React-side hiding or treating `instructorId`/`status` as authorization input.
+- **Why:** Query parameters are filters, not proof of permission, so they cannot expose drafts, archives, or another instructor's data.
+
+## 35. Catalogue work remains server-side and bounded
+
+- **Chose:** Prisma `where`, `orderBy`, `skip`, `take`, and `count`, with maximum page size 50.
+- **Rejected:** Downloading all courses and using browser `filter`, `sort`, or `slice`.
+- **Why:** Filtered totals and page boundaries remain correct and the browser receives only the requested page.
+
+## 36. Enrollment count is relation-derived and sortable
+
+- **Chose:** Use Prisma's `Enrollment` relation `_count` for response values and PostgreSQL relation-count ordering.
+- **Rejected:** Fetching enrollments to count in JavaScript or adding a denormalized counter column.
+- **Why:** Enrollment remains the source of truth without stale counters or unnecessary schema maintenance.
+
+## 37. Catalogue ordering has deterministic ties
+
+- **Chose:** Default `createdAt DESC, id DESC`; title, creation date, and enrollment-count sorts use `id DESC` as a secondary key.
+- **Rejected:** Single-column ordering with unstable page boundaries.
+- **Why:** Pagination does not duplicate or omit equal-valued records between requests.

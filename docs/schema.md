@@ -52,6 +52,10 @@ Lesson management used the existing `Lesson` and `LessonProgress` schema unchang
 
 Publishing, archiving, and restoring used the existing `Course.status` enum and related foreign keys unchanged. A serializable service transaction verifies the expected current status and uses a conditional update, while publishing counts the current lessons before changing `DRAFT` to `PUBLISHED`. Archiving and restoring only update `Course.status`; lesson IDs/positions, enrollments, and `LessonProgress` rows are deliberately preserved.
 
+## Full-catalogue phase note
+
+No schema or migration change was required. Existing `Course.status`, `Course.category`, `Course.instructorId`, and the `Enrollment` relation are sufficient for visibility filters and relation-derived enrollment counts. Prisma orders by `Enrollment` relation count in PostgreSQL and returns only the numeric count, not enrollment records. Existing `Course(status)`, `Course(category)`, and `Course(instructorId)` indexes support the primary equality filters; no speculative text-search or denormalized count index was added for this take-home scale.
+
 ## Enrollment and learner-progress phase note
 
 No Prisma schema change was required. An `Enrollment` is created only for the session-authenticated learner and a currently published course; `@@unique([learnerId, courseId])` protects repeated or concurrent enrollment. `LessonProgress` remains keyed by permanent lesson ID through `@@unique([enrollmentId, lessonId])`. A missing row represents `NOT_STARTED`, `startedAt` without `completedAt` represents `IN_PROGRESS`, and `completedAt` represents `COMPLETED`. Learner-facing course percentage and state are calculated from the current lesson set, so lesson position is never a progress identity and added/deleted lessons are reflected without mass-creating progress rows.

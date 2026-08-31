@@ -11,11 +11,12 @@
 | 5. Lesson management | Instructor-owned lesson create/read/update/delete/reorder, real PostgreSQL integration coverage, and minimal UI. | Ownership, stable IDs, progress cascade, ordering, and last-lesson tests. | 1.5 h | Implementation/tests complete; Prisma generation blocked by local Windows file lock |
 | 6. Course lifecycle | Explicit publish/archive/restore commands, empty-course publish guard, and minimal instructor controls. | Real PostgreSQL lifecycle, preservation, ownership, invalid-state, and concurrent-transition tests. | 0.5 h | Complete |
 | 7. Enrollment/progress | Learner self-enrollment, own enrolled courses, lesson start/complete commands, and derived progress with minimal learner UI. | Real PostgreSQL enrollment, access, timestamp, recalculation, integrity, and IDOR tests. | 2 h | Complete |
-| 8. Catalogue/discussion/history | Learner catalogue, comments, immutable history. | Pagination/access tests. | 1.5 h | Pending |
-| 9. Reporting and finish | CSV, dashboard, alerts, integration, deployment. | End-to-end smoke tests. | 1 h | Pending |
+| 8. Full course catalogue | Learner published-course catalogue and instructor own-course list with server-side filters, sorting, relation counts, and pagination. | Real PostgreSQL catalogue visibility, IDOR, filtering, sorting, total, and pagination tests. | 1.5 h | Complete |
+| 9. Comments and activity history | Course-level comments and immutable activity behavior. | Access and immutability tests. | 1 h | Pending |
+| 10. Reporting and finish | Instructor enrollment/CSV, dashboard, alerts, integration, deployment. | End-to-end smoke tests. | 1 h | Pending |
 
 Database constraints precede behavior so later services have reliable persistence invariants. Stretch goals remain out of scope.
 
 Development setup now includes an explicitly invoked, idempotent Prisma seed for two local instructor accounts. It was verified twice against the local PostgreSQL database without deleting existing data.
 
-The next implementation phase is the server-paginated learner catalogue and course-level comments. Instructor manual and CSV enrollment remain a distinct later phase.
+The next implementation phase is course-level comments and immutable activity history. Instructor manual and CSV enrollment remain a distinct later phase.

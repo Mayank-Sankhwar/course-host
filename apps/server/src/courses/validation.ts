@@ -1,5 +1,5 @@
 import { CourseStatus } from '@prisma/client';
-import type { CourseFields, CourseListQuery } from './types.js';
+import type { CourseFields, CourseListQuery, CourseSort } from './types.js';
 
 const limits = { title: 200, description: 5_000, category: 100 };
 const courseFieldNames = ['title', 'description', 'category'] as const;
@@ -66,9 +66,9 @@ export function validateCourseListQuery(input: unknown, instructorId: string): V
   const limit = positiveInteger(query.limit, 20, maxPageSize);
   if (!page.success) return page;
   if (!limit.success) return limit;
-  const sort = query.sort ?? 'createdAt';
-  const direction = query.direction ?? 'desc';
-  if (sort !== 'title' && sort !== 'createdAt') return { success: false, message: 'sort must be title or createdAt.' };
+  const sort = (query.sortBy ?? query.sort ?? 'createdAt') as unknown;
+  const direction = (query.sortOrder ?? query.direction ?? 'desc') as unknown;
+  if (sort !== 'title' && sort !== 'createdAt' && sort !== 'enrollmentCount') return { success: false, message: 'sort must be title, createdAt, or enrollmentCount.' };
   if (direction !== 'asc' && direction !== 'desc') return { success: false, message: 'direction must be asc or desc.' };
   if (query.status !== undefined && !Object.values(CourseStatus).includes(query.status as CourseStatus)) {
     return { success: false, message: 'status must be DRAFT, PUBLISHED, or ARCHIVED.' };
@@ -85,7 +85,7 @@ export function validateCourseListQuery(input: unknown, instructorId: string): V
       ...(search ? { search } : {}),
       ...(category ? { category } : {}),
       ...(query.status ? { status: query.status as CourseStatus } : {}),
-      sort,
+      sort: sort as CourseSort,
       direction,
       skip: (page.data - 1) * limit.data,
       take: limit.data

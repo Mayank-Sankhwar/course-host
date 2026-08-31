@@ -3,6 +3,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import type { AuthUserRepository } from '../auth/types.js';
 import { LearnerAccessError, learnerService } from './service.js';
+import { validateCourseListQuery } from '../courses/validation.js';
 
 function noBody(request: Request): boolean {
   return request.body !== undefined && (typeof request.body !== 'object' || request.body === null || Array.isArray(request.body) || Object.keys(request.body).length > 0);
@@ -32,7 +33,22 @@ export function createLearnerRouter(users: AuthUserRepository) {
     };
   }
 
-  router.get('/available-courses', ...learnerOnly, run(async () => ({ courses: await learnerService.availableCourses() })));
+  router.get('/available-courses', ...learnerOnly, async (request, response, next) => {
+    const validated = validateCourseListQuery(request.query, '');
+    if (!validated.success) return response.status(400).json({ error: validated.message });
+    const rawInstructorId = request.query.instructorId;
+    if (rawInstructorId !== undefined && typeof rawInstructorId !== 'string') return response.status(400).json({ error: 'instructorId must be a string.' });
+    const instructorId = rawInstructorId?.trim();
+    if (instructorId && instructorId.length > 200) return response.status(400).json({ error: 'Filter value is too long.' });
+    try {
+      const catalogue = await learnerService.availableCourses({
+        ...validated.data,
+        ...(instructorId ? { instructorId } : {})
+      });
+      const page = Math.floor(validated.data.skip / validated.data.take) + 1;
+      response.json({ ...catalogue, page, limit: validated.data.take, totalPages: Math.ceil(catalogue.total / validated.data.take) });
+    } catch (error) { next(error); }
+  });
   router.get('/me/courses', ...learnerOnly, run(async (request) => ({ courses: await learnerService.enrolledCourses(request.authUser!.id) })));
 
   router.post('/courses/:courseId/enroll', ...learnerOnly, async (request, response, next) => {

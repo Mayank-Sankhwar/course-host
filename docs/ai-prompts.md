@@ -155,3 +155,21 @@ No full learner catalogue behavior, comments, CSV enrollment, instructor manual 
 ### Verification
 
 `npm test` passed with 25 tests across five files. This includes four isolated real-PostgreSQL learner integration tests covering enrollment eligibility/duplicates, session-scoped enrolled courses, lesson-access ordering and archive blocking, no-regression timestamps, IDOR attempts, concurrent repeated completion, progress recalculation after reorder/delete/add, and archive/restore preservation. `npm run typecheck`, `npm run build`, `npm exec prisma validate`, `npm exec prisma generate`, `npm exec prisma migrate status`, and `git diff --check` passed. No dependency or schema change was needed, and no Git history operation was performed.
+
+## Full course catalogue
+
+### Prompt
+
+The user requested the full CourseHost catalogue phase: evolve the existing learner `GET /api/available-courses` route, preserve instructor listing, enforce learner published-only visibility and instructor ownership, support server-side search/category/status/instructor filters, title/creation/enrollment-count sorting, pagination/totals, a minimal learner catalogue UI, real PostgreSQL tests, documentation, and no Git history operations.
+
+### What changed
+
+Extended `/api/available-courses` into the sole learner catalogue route with validated `search`, `category`, `instructorId`, `sort`/`sortBy`, `direction`/`sortOrder`, `page`, and `limit` query support. The existing instructor list now supports enrollment-count sorting and returns safe instructor/count data. Prisma/PostgreSQL executes the visibility predicates, case-insensitive text search, relation-count ordering, count query, and page query. The learner UI now requests only each selected catalogue page and provides controls for its filters, sorting, and pagination.
+
+### Scope confirmation
+
+No comments, instructor individual enrollment, CSV enrollment, activity-log behavior, inactivity alerts, dashboard analytics, notifications, deployment, final submission work, schema migration, or dependency change was implemented.
+
+### Verification
+
+`npm test` passed with 29 tests across six files, including four isolated real-PostgreSQL catalogue integration tests. They cover learner and instructor visibility, query-parameter IDOR attempts, draft/archive exclusion, title/description search, category/instructor filters, title/creation-date/relation-derived enrollment-count sorting, deterministic ties, total/page boundaries, invalid query values, and a combined filtered query. `npm run typecheck`, `npm run build`, `npm exec prisma validate`, `npm exec prisma generate`, `npm exec prisma migrate status`, and `git diff --check` passed. No dependency or schema change, migration, or Git history operation was performed.

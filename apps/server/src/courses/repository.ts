@@ -22,11 +22,17 @@ export const courseRepository: CourseRepository = {
   }),
   findById: (id) => prisma.course.findUnique({ where: { id } }),
   update: (id, input) => prisma.course.update({ where: { id }, data: input }),
-  list: (query) => prisma.course.findMany({
+  list: async (query) => {
+    const courses = await prisma.course.findMany({
     where: whereFor(query),
-    orderBy: [{ [query.sort]: query.direction }, { id: 'asc' }],
+    orderBy: query.sort === 'enrollmentCount'
+      ? [{ enrollments: { _count: query.direction } }, { id: 'desc' }]
+      : [{ [query.sort]: query.direction }, { id: 'desc' }],
+    include: { instructor: { select: { id: true, email: true } }, _count: { select: { enrollments: true } } },
     skip: query.skip,
     take: query.take
-  }),
+    });
+    return courses.map(({ _count, ...course }) => ({ ...course, enrollmentCount: _count.enrollments }));
+  },
   count: (query) => prisma.course.count({ where: whereFor(query) })
 };

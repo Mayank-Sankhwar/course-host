@@ -89,6 +89,26 @@ Prisma → PostgreSQL
 
 The implemented transitions are `DRAFT → PUBLISHED`, `PUBLISHED → ARCHIVED`, and `ARCHIVED → PUBLISHED`. The conditional update prevents concurrent requests from silently overwriting a transition. Archive and restore modify only `Course.status`; they do not alter related lessons, enrollments, or lesson-progress records. The minimal course manager displays the relevant Publish, Archive, or Restore action and refreshes server state after success.
 
+The full learner catalogue extends the existing `GET /api/available-courses` route:
+
+```text
+Learner catalogue controls
+  ↓ query parameters only
+requireAuth → requireRole(LEARNER)
+  ↓
+PostgreSQL visibility filter: status = PUBLISHED
+  ↓
+Search/category/instructor filters → relation-count ordering → skip/take
+  ↓
+Prisma count query and page query
+  ↓
+One page plus total/totalPages returned to React
+```
+
+The route accepts `search`, `category`, `instructorId`, `sort`/`sortBy`, `direction`/`sortOrder`, `page`, and `limit`. Filters, case-insensitive title/description search, enrollment-count ordering, and pagination execute in PostgreSQL through Prisma; the browser never receives the complete catalogue. Learners are always restricted to published courses—even if they supply a draft/archived status query—and `instructorId` is only a filter over that visible dataset. Catalogue entries expose safe instructor ID/email and a relation-derived `enrollmentCount`, never enrollment rows.
+
+The established instructor `GET /api/courses` list uses the same bounded database filtering/pagination mechanics. It returns only the session instructor's own draft, published, and archived courses; an `instructorId` query cannot change that ownership scope. Both lists default to `createdAt DESC, id DESC`; title, creation date, and enrollment count support a deterministic `id DESC` secondary order.
+
 Learner enrollment and progress now follow this server-enforced path:
 
 ```text
@@ -113,4 +133,4 @@ Lesson progress has no client-provided state or timestamp input. Start creates a
 
 Future API/service code will use the established server-side identity for ownership and enrollment checks; frontend-submitted roles or IDs will never authorize an action. The service layer will derive and update enrollment progress from lesson progress and enforce activity immutability. The current `express-session` MemoryStore is intentionally development-only and must be replaced with persistent session storage before horizontally scaled production deployment.
 
-The minimal learner UI has a small published-course list solely to exercise self-enrollment; it deliberately has no catalogue search, filtering, sorting controls, or pagination. The future learner catalogue query must apply `status = PUBLISHED` in the server query before search, allowed filters, sorting, total counting, and pagination; it must not load all courses in the browser. Enrollment-count sorting, instructor-controlled enrollment, activity behavior, comments, alerts, CSV processing, analytics, and notifications remain planned.
+Instructor-controlled enrollment, activity behavior, comments, alerts, CSV processing, analytics, and notifications remain planned.

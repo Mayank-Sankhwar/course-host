@@ -1,5 +1,6 @@
 import { CourseStatus, EnrollmentProgressState, Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
+import type { CourseListQuery } from '../courses/types.js';
 
 const maxTransactionAttempts = 3;
 
@@ -15,6 +16,8 @@ export type CourseProgress = {
   totalLessons: number;
   completionPercentage: number;
 };
+
+export type LearnerCatalogueQuery = Omit<CourseListQuery, 'instructorId' | 'status'> & { instructorId?: string };
 
 function retryable(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2034' || error.code === 'P2002');
@@ -76,11 +79,35 @@ export function createLearnerService(client: PrismaClient = prisma) {
   }
 
   return {
-    availableCourses: () => client.course.findMany({
-      where: { status: CourseStatus.PUBLISHED },
-      select: { id: true, title: true, description: true, category: true, status: true },
-      orderBy: { createdAt: 'desc' }
-    }),
+    availableCourses: async (query: LearnerCatalogueQuery) => {
+      const where: Prisma.CourseWhereInput = {
+        status: CourseStatus.PUBLISHED,
+        ...(query.instructorId ? { instructorId: query.instructorId } : {}),
+        ...(query.category ? { category: query.category } : {}),
+        ...(query.search ? {
+          OR: [
+            { title: { contains: query.search, mode: 'insensitive' } },
+            { description: { contains: query.search, mode: 'insensitive' } }
+          ]
+        } : {})
+      };
+      const [courses, total] = await Promise.all([
+        client.course.findMany({
+          where,
+          orderBy: query.sort === 'enrollmentCount'
+            ? [{ enrollments: { _count: query.direction } }, { id: 'desc' }]
+            : [{ [query.sort]: query.direction }, { id: 'desc' }],
+          include: { instructor: { select: { id: true, email: true } }, _count: { select: { enrollments: true } } },
+          skip: query.skip,
+          take: query.take
+        }),
+        client.course.count({ where })
+      ]);
+      return {
+        courses: courses.map(({ _count, ...course }) => ({ ...course, enrollmentCount: _count.enrollments })),
+        total
+      };
+    },
 
     enroll: (courseId: string, learnerId: string) => transaction(async (tx) => {
       const course = await tx.course.findUnique({ where: { id: courseId } });

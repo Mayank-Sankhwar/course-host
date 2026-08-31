@@ -13,12 +13,14 @@ export type Course = {
 
 export type CourseFields = Pick<Course, 'title' | 'description' | 'category'>;
 
+export type CourseSort = 'title' | 'createdAt' | 'enrollmentCount';
+
 export type CourseListQuery = {
   instructorId: string;
   search?: string;
   category?: string;
   status?: CourseStatus;
-  sort: 'title' | 'createdAt';
+  sort: CourseSort;
   direction: 'asc' | 'desc';
   skip: number;
   take: number;

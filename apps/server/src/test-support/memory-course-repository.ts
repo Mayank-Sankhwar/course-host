@@ -26,9 +26,9 @@ export class MemoryCourseRepository implements CourseRepository {
     results.sort((left, right) => {
       const first = query.sort === 'title'
         ? left.title.localeCompare(right.title)
-        : left.createdAt.getTime() - right.createdAt.getTime();
+        : query.sort === 'createdAt' ? left.createdAt.getTime() - right.createdAt.getTime() : 0;
       const directional = query.direction === 'asc' ? first : -first;
-      return directional || left.id.localeCompare(right.id);
+      return directional || right.id.localeCompare(left.id);
     });
     return results.slice(query.skip, query.skip + query.take);
   }
