@@ -29,5 +29,8 @@ export const courseApi = {
   }),
   update: (id: string, input: Partial<Pick<Course, 'title' | 'description' | 'category'>>) => request<{ course: Course }>(`/api/courses/${id}`, {
     method: 'PATCH', body: JSON.stringify(input)
+  }),
+  transition: (id: string, action: 'publish' | 'archive' | 'restore') => request<{ course: Course }>(`/api/courses/${id}/${action}`, {
+    method: 'POST'
   })
 };

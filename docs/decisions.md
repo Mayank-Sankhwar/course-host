@@ -143,3 +143,27 @@
 - **Chose:** Temporarily move affected positions above the current maximum, then assign contiguous final positions inside a serializable Prisma transaction with retry for transactional conflicts.
 - **Rejected:** Independent updates that can transiently violate unique `(courseId, position)`.
 - **Why:** Partial failure cannot leave duplicate/gapped final order, and lesson IDs/progress links remain untouched during reorder.
+
+## 25. Lifecycle changes use explicit commands, not `PATCH`
+
+- **Chose:** Instructor-only `publish`, `archive`, and `restore` commands with server-checked expected states.
+- **Rejected:** Accepting arbitrary course-status values in generic metadata updates.
+- **Why:** The lifecycle has a small allowed graph and must not be bypassed by browser-provided status fields.
+
+## 26. Publishing requires an existing lesson at transition time
+
+- **Chose:** Count lessons inside the serializable publish transaction and reject an empty course with a conflict.
+- **Rejected:** A frontend-only check or publishing first and validating later.
+- **Why:** Concurrent browser requests cannot publish an empty draft, and the database state remains the authority.
+
+## 27. Archival preserves course records and learning history
+
+- **Chose:** Archive/restore update only `Course.status`.
+- **Rejected:** Deleting, recreating, or mutating lessons, enrollments, or lesson progress during lifecycle transitions.
+- **Why:** Existing learners retain their data and a restored course resumes with stable lesson identities and ordering.
+
+## 28. Learner catalogue visibility is a server query rule
+
+- **Chose:** The future learner catalogue will query only `PUBLISHED` courses before filtering, sorting, counting, and paginating.
+- **Rejected:** Sending all lifecycle states to the browser and hiding them client-side.
+- **Why:** Draft and archived material must never become visible through a manipulated client request.

@@ -41,6 +41,16 @@ export function CourseManager() {
     setForm({ title: course.title, description: course.description, category: course.category });
   }
 
+  async function transition(course: Course, action: 'publish' | 'archive' | 'restore') {
+    setError(null);
+    try {
+      await courseApi.transition(course.id, action);
+      await loadCourses();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Unable to update course status.');
+    }
+  }
+
   return (
     <section>
       <h2>My courses</h2>
@@ -53,7 +63,7 @@ export function CourseManager() {
       </form>
       {error && <p role="alert">{error}</p>}
       <ul>
-        {courses.map((course) => <li key={course.id}><strong>{course.title}</strong> — {course.status} <button onClick={() => edit(course)}>Edit</button> <button onClick={() => setLessonCourse(course)}>Manage lessons</button></li>)}
+        {courses.map((course) => <li key={course.id}><strong>{course.title}</strong> — {course.status} <button onClick={() => edit(course)}>Edit</button> <button onClick={() => setLessonCourse(course)}>Manage lessons</button>{course.status === 'DRAFT' && <button onClick={() => void transition(course, 'publish')}>Publish</button>}{course.status === 'PUBLISHED' && <button onClick={() => void transition(course, 'archive')}>Archive</button>}{course.status === 'ARCHIVED' && <button onClick={() => void transition(course, 'restore')}>Restore</button>}</li>)}
       </ul>
       {lessonCourse && <LessonManager courseId={lessonCourse.id} courseTitle={lessonCourse.title} />}
     </section>

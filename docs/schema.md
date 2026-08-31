@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the authoritative initial PostgreSQL/Prisma design. `prisma/schema.prisma` is formatted and valid, and Prisma Client has been generated. An initial migration is pending because no real `DATABASE_URL` has been supplied; no database has been changed.
+This is the authoritative PostgreSQL/Prisma design. `prisma/schema.prisma` is formatted and valid, the initial migration is applied to the configured local PostgreSQL database, and Prisma Client is present. No schema change was needed for the lifecycle phase.
 
 ## Enums
 
@@ -34,7 +34,7 @@ The unique lesson-position key requires a reorder service to use a transaction a
 
 ## Database rules versus future service rules
 
-The database enforces foreign keys, enum values, unique email/enrollment/progress/position values, and scoped deletion behavior. The service/API layer will enforce email normalization, password hashing, roles, ownership, learner enrollment access, course lifecycle, last-lesson protection, monotonic progress timestamps, comment eligibility, activity immutability, and valid `progressState` derivation/transitions.
+The database enforces foreign keys, enum values, unique email/enrollment/progress/position values, and scoped deletion behavior. The service/API layer enforces email normalization, password hashing, roles, ownership, explicit course lifecycle transitions, last-lesson protection, and course metadata validation. Learner enrollment access, monotonic progress timestamps, comment eligibility, activity immutability, and valid `progressState` derivation/transitions remain pending.
 
 `LessonProgress` state is timestamp-derived: no row means not started; a started-but-uncompleted row is in progress; a completed timestamp means completed. Course percentage and state are calculated from the current lessons plus their progress, so no completed count, total count, or percentage is persisted. This handles additions/deletions/reordering correctly.
 
@@ -47,3 +47,7 @@ Course CRUD used the existing `Course` model unchanged. No migration or schema c
 ## Lesson-management phase note
 
 Lesson management used the existing `Lesson` and `LessonProgress` schema unchanged. `Lesson.id` remains the stable progress reference while `position` is mutable ordering within a course. The database enforces unique `(courseId, position)`. The `LessonProgress.lessonId` foreign key uses `onDelete: Cascade`, so deletion removes only progress for the deleted lesson; course, enrollment, remaining lessons, and their progress remain intact.
+
+## Course-lifecycle phase note
+
+Publishing, archiving, and restoring used the existing `Course.status` enum and related foreign keys unchanged. A serializable service transaction verifies the expected current status and uses a conditional update, while publishing counts the current lessons before changing `DRAFT` to `PUBLISHED`. Archiving and restoring only update `Course.status`; lesson IDs/positions, enrollments, and `LessonProgress` rows are deliberately preserved.

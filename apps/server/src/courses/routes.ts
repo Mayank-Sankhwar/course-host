@@ -1,8 +1,9 @@
 import { Role } from '@prisma/client';
-import { Router } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import type { AuthUserRepository } from '../auth/types.js';
 import { courseRepository } from './repository.js';
+import { CourseLifecycleError, courseLifecycleService, type CourseLifecycleAction } from './lifecycle.js';
 import type { Course, CourseRepository } from './types.js';
 import { validateCourseListQuery, validateCreateCourse, validateUpdateCourse } from './validation.js';
 
@@ -60,6 +61,29 @@ export function createCourseRouter(users: AuthUserRepository, courses: CourseRep
       response.json({ course: safeCourse(updated) });
     } catch (error) { next(error); }
   });
+
+  function lifecycle(action: CourseLifecycleAction) {
+    return async (request: Request, response: Response, next: NextFunction) => {
+      const courseId = request.params.courseId;
+      if (typeof courseId !== 'string') return response.status(404).json({ error: 'Course not found.' });
+      try {
+        const course = await courseLifecycleService.transition(courseId, request.authUser!.id, action);
+        response.json({ course: safeCourse(course) });
+      } catch (error) {
+        if (error instanceof CourseLifecycleError) {
+          if (error.kind === 'NOT_FOUND') return response.status(404).json({ error: 'Course not found.' });
+          if (error.kind === 'FORBIDDEN') return response.status(403).json({ error: 'You do not have permission to perform this action.' });
+          if (error.kind === 'PUBLISH_REQUIRES_LESSON') return response.status(409).json({ error: 'The course must contain at least one lesson before it can be published.' });
+          return response.status(409).json({ error: 'The course lifecycle transition is not allowed from the current status.' });
+        }
+        next(error);
+      }
+    };
+  }
+
+  router.post('/:courseId/publish', ...instructorOnly, lifecycle('publish'));
+  router.post('/:courseId/archive', ...instructorOnly, lifecycle('archive'));
+  router.post('/:courseId/restore', ...instructorOnly, lifecycle('restore'));
 
   return router;
 }

@@ -119,3 +119,21 @@ Added `prisma/seed.ts` and Prisma seed configuration. The seed uses the shared p
 ### Verification
 
 Local PostgreSQL migration status was up to date. The seed was run twice successfully; a real Prisma query confirmed two matching instructor records, and both accounts successfully completed login plus `/api/auth/me`. Typecheck, tests, build, and Prisma validation passed. Prisma client generation was attempted twice but blocked by a Windows `EPERM` lock on the generated engine file while local Node server/studio processes were running.
+
+## Course lifecycle: publish, archive, and restore
+
+### Prompt
+
+The user requested the controlled CourseHost lifecycle phase: implement only `DRAFT → PUBLISHED → ARCHIVED → PUBLISHED`, use explicit instructor-owned publish/archive/restore endpoints, require at least one lesson before publishing, preserve learning records when archiving/restoring, add real PostgreSQL integration coverage and minimal instructor controls, update documentation, and do not implement learner catalogue, enrollment/progress APIs, comments, alerts, dashboard, CSV, notifications, or Git history operations.
+
+### What changed
+
+Added a serializable Prisma lifecycle service and `POST /api/courses/:courseId/publish`, `/archive`, and `/restore`. Each command derives the instructor from the authenticated session, checks ownership and the expected source status, and uses a conditional database update. Publishing counts lessons in the transaction. The course manager now offers the status-appropriate action and reloads server state after success.
+
+### Scope confirmation
+
+This was the lifecycle foundation step. No learner/instructor business functionality beyond the requested course lifecycle was implemented: there are still no enrollment/progress, learner catalogue, comments, activity behavior, alerts, CSV, dashboard, or notification flows.
+
+### Verification
+
+`npm run typecheck`, `npm test`, and `npm run build` passed. The complete server suite has 21 passing tests, including four isolated real-PostgreSQL lifecycle integration tests. Prisma validation, migration status, and client generation passed; the configured database schema is up to date. No schema migration, dependency change, or Git history operation was performed.
