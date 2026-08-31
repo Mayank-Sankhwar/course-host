@@ -10,6 +10,7 @@ import type { CourseRepository } from './courses/types.js';
 import { createLessonRouter } from './lessons/routes.js';
 import { createLearnerRouter } from './learner/routes.js';
 import { createCommentRouter } from './comments/routes.js';
+import { createInstructorEnrollmentRouter } from './enrollments/routes.js';
 
 type AppOptions = {
   clientOrigin: string;
@@ -47,6 +48,7 @@ export function createApp(options: AppOptions) {
   app.use('/api/courses', createCourseRouter(users, courses));
   app.use('/api/courses/:courseId/lessons', createLessonRouter(users, courses));
   app.use('/api/courses', createCommentRouter(users));
+  app.use('/api/courses', createInstructorEnrollmentRouter(users));
   app.use('/api', createLearnerRouter(users));
   options.registerRoutes?.(app);
 
@@ -54,6 +56,10 @@ export function createApp(options: AppOptions) {
     response.status(404).json({ error: 'Not found.' });
   });
   app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
+    if (typeof error === 'object' && error !== null && 'type' in error && error.type === 'entity.too.large') {
+      response.status(413).json({ error: 'CSV file is too large.' });
+      return;
+    }
     console.error('Unexpected request error', error);
     response.status(500).json({ error: 'An unexpected error occurred.' });
   });

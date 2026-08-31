@@ -63,3 +63,7 @@ No Prisma schema change was required. An `Enrollment` is created only for the se
 ## Learner course experience and comments phase note
 
 No schema or migration change was required. `Comment` already expresses the required course-level relationship: `courseId` links one comment to one course and `authorId` links it to one user; it deliberately has no `lessonId`. The database stores its text in `content`, while the API calls the validated value `body`. Server validation trims surrounding whitespace, requires a non-empty string, limits it to 2,000 characters and 50 whitespace-separated tokens, and rejects unexpected fields. Comments use `createdAt ASC, id ASC` deterministic chronology and remain preserved across archive/restore; application authorization controls viewing and creation rather than deleting history.
+
+## Instructor enrollment and CSV phase note
+
+No schema or migration change was required. The existing `Enrollment(learnerId, courseId)` relationship and `@@unique([learnerId, courseId])` are reused for individual and CSV enrollment. The application validates the owned published course, normalized learner email, learner role, and duplicates; PostgreSQL remains the final concurrency boundary. Bulk operations are not persisted as a separate table and no `LessonProgress` records are pre-created—new learners start with a single `Enrollment` and lazy progress facts.

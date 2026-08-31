@@ -245,3 +245,27 @@
 - **Chose:** Preserve all comment rows; reject all new comments while archived. Learner reads are blocked with course access, while the owner can review the historic discussion.
 - **Rejected:** Deleting comments, letting active discussion continue, or recreating history on restore.
 - **Why:** It preserves history and matches archived learner-content access without losing instructor context.
+
+## 42. Instructor enrollment identifies learners by normalized email
+
+- **Chose:** Derive instructor identity from the session, verify database ownership, then find an existing learner by trimmed/lowercased email.
+- **Rejected:** Request-body learner/instructor IDs, automatic account creation, or instructor-role enrollment.
+- **Why:** The workflow matches instructor input while preventing IDOR, role confusion, and impersonation.
+
+## 43. Instructor enrollment is limited to published courses
+
+- **Chose:** Individual and bulk adds require an owned `PUBLISHED` course; the owner may still list historical enrollments after archive.
+- **Rejected:** Adding learners to drafts/archives or deleting/list-hiding historical enrollments.
+- **Why:** README describes instructor enrollment into active courses, while lifecycle preserves history.
+
+## 44. Bulk CSV results are independent and per row
+
+- **Chose:** Process each normalized CSV row separately and return a status for every submitted row; later duplicate-file rows are `DUPLICATE_IN_FILE`.
+- **Rejected:** One transaction that rolls back valid rows, silently discarding duplicate rows, or a CSV history table.
+- **Why:** Instructors receive actionable partial-success results and database uniqueness handles races safely.
+
+## 45. CSV upload is intentionally bounded
+
+- **Chose:** One optional `email` header, one email column, maximum 1,000 rows and 256 KiB.
+- **Rejected:** Unbounded uploads or a spreadsheet/file-storage subsystem.
+- **Why:** It keeps request work appropriate for a synchronous take-home API while accepting normal CRLF/LF, quoted values, and whitespace.

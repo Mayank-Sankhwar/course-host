@@ -191,3 +191,21 @@ No instructor individual enrollment, bulk CSV enrollment, activity-log behavior,
 ### Verification
 
 `npm test` passed with 32 tests across seven files. The three new isolated real-PostgreSQL comment tests cover authenticated participant reads/writes, learner/instructor IDOR denial, session-derived authorship and unexpected author fields, whitespace word counting, exact 50/51-word boundaries, concurrent creates, deterministic chronology including timestamp ties, and archive/restore preservation. Existing learner PostgreSQL tests continue to cover server-ordered material/progress, arbitrary completion, progress recalculation, and archive access. `npm run typecheck`, `npm run build`, `npm exec prisma validate`, `npm exec prisma generate`, `npm exec prisma migrate status`, and `git diff --check` passed. No dependency or schema change, migration, or Git history operation was performed.
+
+## Instructor individual enrollment + bulk CSV enrollment
+
+### Prompt
+
+The user requested only owner-scoped instructor enrollment of existing learners, bounded multipart CSV enrollment with per-email partial-success reporting, a safe instructor learner list, minimal instructor UI, real PostgreSQL tests, and documentation. The prompt prohibited activity logging, alerts, dashboard, notifications, deployment, final submission work, new progress/comment functionality, schema redesign, and Git history operations.
+
+### What changed
+
+Added instructor-only `POST /api/courses/:courseId/enrollments`, `POST /api/courses/:courseId/enrollments/bulk`, and `GET /api/courses/:courseId/enrollments`. The server derives instructor identity from the session, requires course ownership and `PUBLISHED` status for new enrollment, reuses auth email normalization, restricts targets to existing learners, and relies on the existing enrollment unique constraint for races. CSV input is bounded to 256 KiB and 1,000 rows, accepts an optional `email` header, handles quoted/CRLF/LF input, processes rows independently, and returns a deterministic result for every row. Added minimal individual/CSV forms, result table, and enrolled-learner list to the instructor course view.
+
+### Scope confirmation
+
+No activity logging, inactivity classification/alerts, notifications, dashboard analytics, deployment, final submission work, schema migration, or dependency change was implemented.
+
+### Verification
+
+`npm run typecheck` passed after implementation. An initial real-PostgreSQL enrollment test run identified and fixed a test-fixture issue (string attachment interpreted as a path) and a multipart-size-boundary behavior. The final privileged test rerun was blocked by the Codex environment execution usage limit before it could start, so no full-suite success claim is made for this phase. The non-privileged `npm run build` attempt was likewise blocked by sandbox `spawn EPERM` when Vite attempted to start esbuild. The test suite file contains isolated PostgreSQL coverage for individual/bulk authorization, normalization, partial success, duplicate races, size/row limits, and the owner learner list. Earlier project verification remains recorded above.

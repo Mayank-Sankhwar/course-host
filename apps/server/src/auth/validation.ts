@@ -3,6 +3,14 @@ import { Role } from '@prisma/client';
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const minimumPasswordLength = 8;
 
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+export function isValidEmail(email: string): boolean {
+  return emailPattern.test(email);
+}
+
 export type Credentials = { email: string; password: string };
 
 export type ValidationResult =
@@ -19,8 +27,8 @@ export function validateCredentials(input: unknown): ValidationResult {
     return { success: false, message: 'Email and password are required.' };
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
-  if (!emailPattern.test(normalizedEmail)) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!isValidEmail(normalizedEmail)) {
     return { success: false, message: 'Provide a valid email address.' };
   }
   if (password.length < minimumPasswordLength) {

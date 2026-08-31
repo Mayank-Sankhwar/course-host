@@ -13,11 +13,12 @@
 | 7. Enrollment/progress | Learner self-enrollment, own enrolled courses, lesson start/complete commands, and derived progress with minimal learner UI. | Real PostgreSQL enrollment, access, timestamp, recalculation, integrity, and IDOR tests. | 2 h | Complete |
 | 8. Full course catalogue | Learner published-course catalogue and instructor own-course list with server-side filters, sorting, relation counts, and pagination. | Real PostgreSQL catalogue visibility, IDOR, filtering, sorting, total, and pagination tests. | 1.5 h | Complete |
 | 9. Learner course experience and comments | Server-backed course material/progress experience and course-level comments for participants. | Real PostgreSQL lesson/progress and comment authorization, validation, ordering, archive/restore tests. | 1 h | Complete |
-| 10. Activity history | Immutable course activity behavior. | Activity authorization and immutability tests. | 0.5 h | Pending |
-| 11. Reporting and finish | Instructor enrollment/CSV, dashboard, alerts, integration, deployment. | End-to-end smoke tests. | 1 h | Pending |
+| 10. Instructor enrollment and CSV | Owner-scoped individual learner add, bounded CSV partial success, and learner list. | Real PostgreSQL ownership, roles, duplicates/races, CSV parsing, and safe-list tests. | 1 h | Implementation complete; final full test rerun blocked by environment execution limit |
+| 11. Activity history | Immutable course activity behavior. | Activity authorization and immutability tests. | 0.5 h | Pending |
+| 12. Reporting and finish | Dashboard, alerts, integration, deployment. | End-to-end smoke tests. | 1 h | Pending |
 
 Database constraints precede behavior so later services have reliable persistence invariants. Stretch goals remain out of scope.
 
 Development setup now includes an explicitly invoked, idempotent Prisma seed for two local instructor accounts. It was verified twice against the local PostgreSQL database without deleting existing data.
 
-The next implementation phase is immutable activity history. Instructor manual and CSV enrollment remain a distinct later phase.
+The next implementation phase is immutable activity history.

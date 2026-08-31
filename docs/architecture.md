@@ -129,6 +129,24 @@ Prisma → PostgreSQL
 
 Lesson progress has no client-provided state or timestamp input. Start creates a `(enrollmentId, lessonId)` record only when absent; complete creates both timestamps when absent or adds `completedAt` to an in-progress record. Reopening a completed lesson leaves it completed. The service calculates course state and percentage from the current lesson IDs, so reorder does not change progress, deletion removes only its cascaded progress, and a newly added lesson is naturally `NOT_STARTED`.
 
+Instructor-managed enrollment follows the same server-owned identity boundary:
+
+```text
+Instructor form or CSV upload
+  ↓
+requireAuth → requireRole(INSTRUCTOR)
+  ↓
+session-derived instructor → owned, PUBLISHED course check
+  ↓
+normalized learner email → user/role lookup → Enrollment create
+  ↓
+PostgreSQL unique (learnerId, courseId)
+```
+
+`POST /api/courses/:courseId/enrollments` accepts only `{ email }`. `POST /api/courses/:courseId/enrollments/bulk` accepts a multipart CSV with one `email` column (header optional), up to 1,000 nonblank rows and 256 KiB. CSV rows are parsed as untrusted text, normalized with the same trim/lowercase rule as authentication, and processed independently so an invalid, missing, duplicate, or instructor row does not roll back valid rows. Each row receives `ADDED`, `ALREADY_ENROLLED`, `LEARNER_NOT_FOUND`, `NOT_A_LEARNER`, `INVALID_EMAIL`, or `DUPLICATE_IN_FILE`; first CSV occurrence is authoritative and later duplicates get `DUPLICATE_IN_FILE`.
+
+`GET /api/courses/:courseId/enrollments` is owner-only, paginated, and returns safe learner ID/email plus enrollment data. It is intentionally available for archived owned courses to inspect preserved historical enrollment; creating individual or bulk enrollments is limited to published courses, matching the README’s active-course enrollment rule. New enrollment creates no `LessonProgress` rows.
+
 The learner course experience uses the existing own-enrollment and lesson/progress routes. Selecting an enrolled course renders server-ordered lessons, their position/state, the selected lesson's stored material, and the current server-derived course progress. Opening a lesson calls the existing start command; completing it refetches server progress. An archived enrollment remains listed, but active learner lesson and discussion access are server-blocked with the archived-course message.
 
 Course-level discussion is a separate, scoped resource:
@@ -149,4 +167,4 @@ Comments are never lesson-specific. Their author comes exclusively from the auth
 
 Future API/service code will use the established server-side identity for ownership and enrollment checks; frontend-submitted roles or IDs will never authorize an action. The service layer will derive and update enrollment progress from lesson progress and enforce activity immutability. The current `express-session` MemoryStore is intentionally development-only and must be replaced with persistent session storage before horizontally scaled production deployment.
 
-Instructor-controlled enrollment, activity behavior, alerts, CSV processing, analytics, and notifications remain planned.
+Activity behavior, alerts, CSV processing, analytics, and notifications remain planned.
