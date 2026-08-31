@@ -34,7 +34,7 @@ The unique lesson-position key requires a reorder service to use a transaction a
 
 ## Database rules versus future service rules
 
-The database enforces foreign keys, enum values, unique email/enrollment/progress/position values, and scoped deletion behavior. The service/API layer enforces email normalization, password hashing, roles, ownership, explicit course lifecycle transitions, last-lesson protection, and course metadata validation. Learner enrollment access, monotonic progress timestamps, comment eligibility, activity immutability, and valid `progressState` derivation/transitions remain pending.
+The database enforces foreign keys, enum values, unique email/enrollment/progress/position values, and scoped deletion behavior. The service/API layer enforces email normalization, password hashing, roles, ownership, explicit course lifecycle transitions, learner self-enrollment into published courses, enrollment-scoped progress access, monotonic lesson timestamps, and course-progress derivation. Comment eligibility, activity immutability, instructor-controlled enrollment, and alerts remain pending.
 
 `LessonProgress` state is timestamp-derived: no row means not started; a started-but-uncompleted row is in progress; a completed timestamp means completed. Course percentage and state are calculated from the current lessons plus their progress, so no completed count, total count, or percentage is persisted. This handles additions/deletions/reordering correctly.
 
@@ -51,3 +51,7 @@ Lesson management used the existing `Lesson` and `LessonProgress` schema unchang
 ## Course-lifecycle phase note
 
 Publishing, archiving, and restoring used the existing `Course.status` enum and related foreign keys unchanged. A serializable service transaction verifies the expected current status and uses a conditional update, while publishing counts the current lessons before changing `DRAFT` to `PUBLISHED`. Archiving and restoring only update `Course.status`; lesson IDs/positions, enrollments, and `LessonProgress` rows are deliberately preserved.
+
+## Enrollment and learner-progress phase note
+
+No Prisma schema change was required. An `Enrollment` is created only for the session-authenticated learner and a currently published course; `@@unique([learnerId, courseId])` protects repeated or concurrent enrollment. `LessonProgress` remains keyed by permanent lesson ID through `@@unique([enrollmentId, lessonId])`. A missing row represents `NOT_STARTED`, `startedAt` without `completedAt` represents `IN_PROGRESS`, and `completedAt` represents `COMPLETED`. Learner-facing course percentage and state are calculated from the current lesson set, so lesson position is never a progress identity and added/deleted lessons are reflected without mass-creating progress rows.

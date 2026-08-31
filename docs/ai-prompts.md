@@ -137,3 +137,21 @@ This was the lifecycle foundation step. No learner/instructor business functiona
 ### Verification
 
 `npm run typecheck`, `npm test`, and `npm run build` passed. The complete server suite has 21 passing tests, including four isolated real-PostgreSQL lifecycle integration tests. Prisma validation, migration status, and client generation passed; the configured database schema is up to date. No schema migration, dependency change, or Git history operation was performed.
+
+## Enrollment + learner progress
+
+### Prompt
+
+The user requested only learner self-enrollment into published courses, own-enrollment lookup, learner lesson access, timestamp-derived lesson progress, derived current-course progress, PostgreSQL integration tests, a minimal learner UI, documentation, and an explicit security review. The prompt prohibited catalogue search/filter/sort/pagination, comments, CSV, instructor manual enrollment, activity behavior, alerts, dashboard, notifications, deployment, schema redesign, and Git history operations.
+
+### What changed
+
+Added learner-only enrollment, enrolled-course, minimal published-course list, lesson access, progress retrieval, start, and complete routes. The service derives the learner from the signed-in session, checks course status and enrollment ownership, validates lesson/course membership, uses serializable transactions/retries for repeated writes, and computes course progress from current lesson IDs and timestamp facts. Added a minimal learner course/progress interface and isolated PostgreSQL API integration coverage.
+
+### Scope confirmation
+
+No full learner catalogue behavior, comments, CSV enrollment, instructor manual enrollment, activity-log behavior, alerts, dashboard, notifications, deployment, or schema migration was implemented.
+
+### Verification
+
+`npm test` passed with 25 tests across five files. This includes four isolated real-PostgreSQL learner integration tests covering enrollment eligibility/duplicates, session-scoped enrolled courses, lesson-access ordering and archive blocking, no-regression timestamps, IDOR attempts, concurrent repeated completion, progress recalculation after reorder/delete/add, and archive/restore preservation. `npm run typecheck`, `npm run build`, `npm exec prisma validate`, `npm exec prisma generate`, `npm exec prisma migrate status`, and `git diff --check` passed. No dependency or schema change was needed, and no Git history operation was performed.

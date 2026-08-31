@@ -2,6 +2,7 @@ import { FormEvent, StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { authApi, type CurrentUser } from './auth-api';
 import { CourseManager } from './course-manager';
+import { LearnerManager } from './learner-manager';
 
 const root = document.getElementById('root');
 
@@ -40,7 +41,7 @@ function AuthenticationApp() {
   }
 
   if (user) {
-    return <main><h1>CourseHost</h1><p>Signed in as {user.email} ({user.role}).</p><button onClick={logout}>Log out</button>{user.role === 'INSTRUCTOR' && <CourseManager />}</main>;
+    return <main><h1>CourseHost</h1><p>Signed in as {user.email} ({user.role}).</p><button onClick={logout}>Log out</button>{user.role === 'INSTRUCTOR' && <CourseManager />}{user.role === 'LEARNER' && <LearnerManager />}</main>;
   }
 
   return (

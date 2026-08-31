@@ -167,3 +167,27 @@
 - **Chose:** The future learner catalogue will query only `PUBLISHED` courses before filtering, sorting, counting, and paginating.
 - **Rejected:** Sending all lifecycle states to the browser and hiding them client-side.
 - **Why:** Draft and archived material must never become visible through a manipulated client request.
+
+## 29. Learners self-enroll only into currently published courses
+
+- **Chose:** The learner endpoint derives the learner from the session and checks `Course.status` at enrollment time.
+- **Rejected:** Accepting a body `learnerId`, allowing draft/archive enrollment, or trusting the browser's view of course status.
+- **Why:** A known course ID must not allow cross-user enrollment or enrollment into unavailable material.
+
+## 30. Progress is a timestamp fact, not a client-set state
+
+- **Chose:** Start and complete commands write server timestamps; missing progress is `NOT_STARTED`, started-only is `IN_PROGRESS`, and completed is `COMPLETED`.
+- **Rejected:** A mutable request-body status/timestamp or a second lesson-state column.
+- **Why:** The storage model cannot contradict the derived state and completed lessons never regress when reopened.
+
+## 31. Learner progress is scoped by enrollment and stable lesson ID
+
+- **Chose:** Every learner progress read/write first resolves the session learner's enrollment and verifies the lesson belongs to that course.
+- **Rejected:** Enrollment IDs or lesson positions supplied by the client as authorization.
+- **Why:** It prevents learner IDOR attacks and keeps reorder independent from progress identity.
+
+## 32. Course progress is calculated from current lessons
+
+- **Chose:** Calculate completed/total/percentage and state from the current course lessons plus their `LessonProgress` rows.
+- **Rejected:** Persisted percentages, array-index matching, or creating rows for every not-started lesson.
+- **Why:** Adding a lesson naturally reduces a formerly complete course; deleting a lesson's cascaded progress no longer affects the result.
