@@ -173,3 +173,21 @@ No comments, instructor individual enrollment, CSV enrollment, activity-log beha
 ### Verification
 
 `npm test` passed with 29 tests across six files, including four isolated real-PostgreSQL catalogue integration tests. They cover learner and instructor visibility, query-parameter IDOR attempts, draft/archive exclusion, title/description search, category/instructor filters, title/creation-date/relation-derived enrollment-count sorting, deterministic ties, total/page boundaries, invalid query values, and a combined filtered query. `npm run typecheck`, `npm run build`, `npm exec prisma validate`, `npm exec prisma generate`, `npm exec prisma migrate status`, and `git diff --check` passed. No dependency or schema change, migration, or Git history operation was performed.
+
+## Learner course experience + course-level comments
+
+### Prompt
+
+The user requested only the learner enrolled-course experience (server-backed lesson material, progress, start/complete, and current course progress) plus course-level comments. The prompt required participant authorization, a server-enforced 50-word limit, chronological comments, archive/restore preservation, minimal instructor discussion UI, real PostgreSQL integration tests, documentation, and no Git history operations.
+
+### What changed
+
+The existing learner lesson response now includes stored lesson content for the selected-course experience. Added `GET` and `POST /api/courses/:courseId/comments`, a role-aware course-comment service, server body validation, a shared minimal discussion component, learner lesson-content display, and instructor per-course discussion access. Comments are course-level, scoped by the session user’s enrollment or ownership, ordered oldest-first with ID ties, and preserved across archive/restore while new comments are rejected during archive.
+
+### Scope confirmation
+
+No instructor individual enrollment, bulk CSV enrollment, activity-log behavior, inactivity alerts, dashboard analytics, notifications, deployment, final submission work, schema migration, or dependency change was implemented.
+
+### Verification
+
+`npm test` passed with 32 tests across seven files. The three new isolated real-PostgreSQL comment tests cover authenticated participant reads/writes, learner/instructor IDOR denial, session-derived authorship and unexpected author fields, whitespace word counting, exact 50/51-word boundaries, concurrent creates, deterministic chronology including timestamp ties, and archive/restore preservation. Existing learner PostgreSQL tests continue to cover server-ordered material/progress, arbitrary completion, progress recalculation, and archive access. `npm run typecheck`, `npm run build`, `npm exec prisma validate`, `npm exec prisma generate`, `npm exec prisma migrate status`, and `git diff --check` passed. No dependency or schema change, migration, or Git history operation was performed.

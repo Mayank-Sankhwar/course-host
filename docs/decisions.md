@@ -221,3 +221,27 @@
 - **Chose:** Default `createdAt DESC, id DESC`; title, creation date, and enrollment-count sorts use `id DESC` as a secondary key.
 - **Rejected:** Single-column ordering with unstable page boundaries.
 - **Why:** Pagination does not duplicate or omit equal-valued records between requests.
+
+## 38. Comments are course-level and retained
+
+- **Chose:** Use existing `Comment(courseId, authorId, content)` without a lesson foreign key.
+- **Rejected:** Per-lesson comment threads or deleting discussion when a course is archived.
+- **Why:** The assignment defines one course discussion, while archive/restore must preserve history.
+
+## 39. Discussion participation is relationship-authorized
+
+- **Chose:** Permit enrolled learners on published courses and the owning instructor; derive author identity from the session.
+- **Rejected:** Request-body author IDs, client role checks, or unrelated instructor/learner access.
+- **Why:** Course ID knowledge alone cannot expose discussion or create an impersonated comment.
+
+## 40. Comment text uses a deterministic server word limit
+
+- **Chose:** Trim text and count non-empty whitespace-separated tokens, with a 50-word and 2,000-character server limit.
+- **Rejected:** HTML-only validation, NLP word parsing, or silent truncation.
+- **Why:** The result is simple, predictable, and enforced for every client.
+
+## 41. Archived discussion is read-preserved but write-stopped
+
+- **Chose:** Preserve all comment rows; reject all new comments while archived. Learner reads are blocked with course access, while the owner can review the historic discussion.
+- **Rejected:** Deleting comments, letting active discussion continue, or recreating history on restore.
+- **Why:** It preserves history and matches archived learner-content access without losing instructor context.

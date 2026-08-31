@@ -9,6 +9,7 @@ import { courseRepository } from './courses/repository.js';
 import type { CourseRepository } from './courses/types.js';
 import { createLessonRouter } from './lessons/routes.js';
 import { createLearnerRouter } from './learner/routes.js';
+import { createCommentRouter } from './comments/routes.js';
 
 type AppOptions = {
   clientOrigin: string;
@@ -45,6 +46,7 @@ export function createApp(options: AppOptions) {
   app.use('/api/auth', createAuthRouter(users));
   app.use('/api/courses', createCourseRouter(users, courses));
   app.use('/api/courses/:courseId/lessons', createLessonRouter(users, courses));
+  app.use('/api/courses', createCommentRouter(users));
   app.use('/api', createLearnerRouter(users));
   options.registerRoutes?.(app);
 

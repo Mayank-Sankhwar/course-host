@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { courseApi, type Course } from './course-api';
 import { LessonManager } from './lesson-manager';
+import { CourseDiscussion } from './course-discussion';
 
 const emptyCourse = { title: '', description: '', category: '' };
 
@@ -9,6 +10,7 @@ export function CourseManager() {
   const [form, setForm] = useState(emptyCourse);
   const [editing, setEditing] = useState<Course | null>(null);
   const [lessonCourse, setLessonCourse] = useState<Course | null>(null);
+  const [discussionCourse, setDiscussionCourse] = useState<Course | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function loadCourses() {
@@ -63,9 +65,10 @@ export function CourseManager() {
       </form>
       {error && <p role="alert">{error}</p>}
       <ul>
-        {courses.map((course) => <li key={course.id}><strong>{course.title}</strong> — {course.status} <button onClick={() => edit(course)}>Edit</button> <button onClick={() => setLessonCourse(course)}>Manage lessons</button>{course.status === 'DRAFT' && <button onClick={() => void transition(course, 'publish')}>Publish</button>}{course.status === 'PUBLISHED' && <button onClick={() => void transition(course, 'archive')}>Archive</button>}{course.status === 'ARCHIVED' && <button onClick={() => void transition(course, 'restore')}>Restore</button>}</li>)}
+        {courses.map((course) => <li key={course.id}><strong>{course.title}</strong> — {course.status} <button onClick={() => edit(course)}>Edit</button> <button onClick={() => setLessonCourse(course)}>Manage lessons</button> <button onClick={() => setDiscussionCourse(course)}>Discussion</button>{course.status === 'DRAFT' && <button onClick={() => void transition(course, 'publish')}>Publish</button>}{course.status === 'PUBLISHED' && <button onClick={() => void transition(course, 'archive')}>Archive</button>}{course.status === 'ARCHIVED' && <button onClick={() => void transition(course, 'restore')}>Restore</button>}</li>)}
       </ul>
       {lessonCourse && <LessonManager courseId={lessonCourse.id} courseTitle={lessonCourse.title} />}
+      {discussionCourse && <CourseDiscussion courseId={discussionCourse.id} />}
     </section>
   );
 }

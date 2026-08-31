@@ -46,7 +46,7 @@ function calculatedProgress(lessons: { id: string }[], progressRows: { lessonId:
 }
 
 async function calculateForEnrollment(tx: Prisma.TransactionClient, courseId: string, enrollmentId: string) {
-  const lessons = await tx.lesson.findMany({ where: { courseId }, select: { id: true, position: true, title: true }, orderBy: { position: 'asc' } });
+  const lessons = await tx.lesson.findMany({ where: { courseId }, select: { id: true, position: true, title: true, content: true }, orderBy: { position: 'asc' } });
   const progressRows = lessons.length === 0 ? [] : await tx.lessonProgress.findMany({
     where: { enrollmentId, lessonId: { in: lessons.map((lesson) => lesson.id) } },
     select: { id: true, lessonId: true, startedAt: true, completedAt: true }

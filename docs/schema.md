@@ -34,7 +34,7 @@ The unique lesson-position key requires a reorder service to use a transaction a
 
 ## Database rules versus future service rules
 
-The database enforces foreign keys, enum values, unique email/enrollment/progress/position values, and scoped deletion behavior. The service/API layer enforces email normalization, password hashing, roles, ownership, explicit course lifecycle transitions, learner self-enrollment into published courses, enrollment-scoped progress access, monotonic lesson timestamps, and course-progress derivation. Comment eligibility, activity immutability, instructor-controlled enrollment, and alerts remain pending.
+The database enforces foreign keys, enum values, unique email/enrollment/progress/position values, and scoped deletion behavior. The service/API layer enforces email normalization, password hashing, roles, ownership, explicit course lifecycle transitions, learner self-enrollment into published courses, enrollment-scoped progress access, monotonic lesson timestamps, course-progress derivation, and course-comment eligibility. Activity immutability, instructor-controlled enrollment, and alerts remain pending.
 
 `LessonProgress` state is timestamp-derived: no row means not started; a started-but-uncompleted row is in progress; a completed timestamp means completed. Course percentage and state are calculated from the current lessons plus their progress, so no completed count, total count, or percentage is persisted. This handles additions/deletions/reordering correctly.
 
@@ -59,3 +59,7 @@ No schema or migration change was required. Existing `Course.status`, `Course.ca
 ## Enrollment and learner-progress phase note
 
 No Prisma schema change was required. An `Enrollment` is created only for the session-authenticated learner and a currently published course; `@@unique([learnerId, courseId])` protects repeated or concurrent enrollment. `LessonProgress` remains keyed by permanent lesson ID through `@@unique([enrollmentId, lessonId])`. A missing row represents `NOT_STARTED`, `startedAt` without `completedAt` represents `IN_PROGRESS`, and `completedAt` represents `COMPLETED`. Learner-facing course percentage and state are calculated from the current lesson set, so lesson position is never a progress identity and added/deleted lessons are reflected without mass-creating progress rows.
+
+## Learner course experience and comments phase note
+
+No schema or migration change was required. `Comment` already expresses the required course-level relationship: `courseId` links one comment to one course and `authorId` links it to one user; it deliberately has no `lessonId`. The database stores its text in `content`, while the API calls the validated value `body`. Server validation trims surrounding whitespace, requires a non-empty string, limits it to 2,000 characters and 50 whitespace-separated tokens, and rejects unexpected fields. Comments use `createdAt ASC, id ASC` deterministic chronology and remain preserved across archive/restore; application authorization controls viewing and creation rather than deleting history.

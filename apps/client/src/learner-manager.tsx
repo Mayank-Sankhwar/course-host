@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { learnerApi, type CourseProgress, type LearnerCourse, type LearnerLesson } from './learner-api';
+import { CourseDiscussion } from './course-discussion';
 
 type EnrolledCourse = { enrollment: { id: string; courseId: string }; course: LearnerCourse; progress: CourseProgress };
 
@@ -9,6 +10,7 @@ export function LearnerManager() {
   const [selected, setSelected] = useState<EnrolledCourse | null>(null);
   const [lessons, setLessons] = useState<LearnerLesson[]>([]);
   const [courseProgress, setCourseProgress] = useState<CourseProgress | null>(null);
+  const [currentLesson, setCurrentLesson] = useState<LearnerLesson | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -61,6 +63,7 @@ export function LearnerManager() {
       setSelected(course);
       setLessons(response.lessons);
       setCourseProgress(response.courseProgress);
+      setCurrentLesson(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to open course.');
     }
@@ -74,6 +77,7 @@ export function LearnerManager() {
       const [progressResponse] = await Promise.all([learnerApi.progress(selected.course.id), loadLists()]);
       setLessons(progressResponse.lessons);
       setCourseProgress(progressResponse.courseProgress);
+      setCurrentLesson(progressResponse.lessons.find((lesson) => lesson.id === lessonId) ?? null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to record lesson progress.');
     }
@@ -98,8 +102,11 @@ export function LearnerManager() {
     <ul>{enrolled.map((item) => <li key={item.enrollment.id}><strong>{item.course.title}</strong> — {item.course.status} — {item.progress.completionPercentage}% <button onClick={() => void openCourse(item)}>Open</button></li>)}</ul>
     {selected && <section>
       <h3>{selected.course.title}</h3>
+      <p>{selected.course.description}</p>
       {courseProgress && <p>Course progress: {courseProgress.state} ({courseProgress.completedLessons}/{courseProgress.totalLessons}, {courseProgress.completionPercentage}%)</p>}
-      <ol>{lessons.map((lesson) => <li key={lesson.id}><strong>{lesson.title}</strong> — {lesson.progressState} <button onClick={() => void progressAction(lesson.id, 'start')}>Start</button> <button onClick={() => void progressAction(lesson.id, 'complete')}>Complete</button></li>)}</ol>
+      <ol>{lessons.map((lesson) => <li key={lesson.id}><strong>{lesson.position}. {lesson.title}</strong> — {lesson.progressState} <button onClick={() => { setCurrentLesson(lesson); void progressAction(lesson.id, 'start'); }}>Open lesson</button> <button onClick={() => void progressAction(lesson.id, 'complete')}>Complete</button></li>)}</ol>
+      {currentLesson && <article><h4>{currentLesson.title}</h4><p>{currentLesson.content}</p></article>}
+      <CourseDiscussion courseId={selected.course.id} />
     </section>}
   </section>;
 }

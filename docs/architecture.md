@@ -129,8 +129,24 @@ Prisma → PostgreSQL
 
 Lesson progress has no client-provided state or timestamp input. Start creates a `(enrollmentId, lessonId)` record only when absent; complete creates both timestamps when absent or adds `completedAt` to an in-progress record. Reopening a completed lesson leaves it completed. The service calculates course state and percentage from the current lesson IDs, so reorder does not change progress, deletion removes only its cascaded progress, and a newly added lesson is naturally `NOT_STARTED`.
 
+The learner course experience uses the existing own-enrollment and lesson/progress routes. Selecting an enrolled course renders server-ordered lessons, their position/state, the selected lesson's stored material, and the current server-derived course progress. Opening a lesson calls the existing start command; completing it refetches server progress. An archived enrollment remains listed, but active learner lesson and discussion access are server-blocked with the archived-course message.
+
+Course-level discussion is a separate, scoped resource:
+
+```text
+GET/POST /api/courses/:courseId/comments
+  ↓
+requireAuth → session user and stored role
+  ↓
+Instructor ownership OR learner enrollment + PUBLISHED status
+  ↓
+Prisma Comment(courseId, authorId) → PostgreSQL
+```
+
+Comments are never lesson-specific. Their author comes exclusively from the authenticated session; the API returns only safe author identity, comment body, and timestamp. Comments are ordered `createdAt ASC, id ASC`. Owners can review existing archived discussion, but archived courses reject all new comments; learner discussion access follows the same archived restriction as lessons. Restore makes valid learner discussion available again without recreating comments.
+
 ## Planned
 
 Future API/service code will use the established server-side identity for ownership and enrollment checks; frontend-submitted roles or IDs will never authorize an action. The service layer will derive and update enrollment progress from lesson progress and enforce activity immutability. The current `express-session` MemoryStore is intentionally development-only and must be replaced with persistent session storage before horizontally scaled production deployment.
 
-Instructor-controlled enrollment, activity behavior, comments, alerts, CSV processing, analytics, and notifications remain planned.
+Instructor-controlled enrollment, activity behavior, alerts, CSV processing, analytics, and notifications remain planned.

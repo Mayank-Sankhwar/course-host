@@ -15,7 +15,7 @@ export type CourseProgress = {
   completionPercentage: number;
 };
 
-export type LearnerLesson = { id: string; title: string; position: number; progressState: CourseProgress['state'] };
+export type LearnerLesson = { id: string; title: string; content: string; position: number; progressState: CourseProgress['state'] };
 type EnrolledCourse = { enrollment: { id: string; courseId: string; enrolledAt: string }; course: LearnerCourse; progress: CourseProgress };
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
