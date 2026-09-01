@@ -158,21 +158,35 @@ export function createLearnerService(client: PrismaClient = prisma) {
       if (!lesson) throw new LearnerAccessError('LESSON_NOT_FOUND');
       const existing = await tx.lessonProgress.findUnique({ where: { enrollmentId_lessonId: { enrollmentId: enrollment.id, lessonId } } });
       let lessonProgress;
+      let madeProgress = false;
       if (!existing) {
         const now = new Date();
         lessonProgress = await tx.lessonProgress.create({
           data: { enrollmentId: enrollment.id, lessonId, startedAt: now, completedAt: action === 'complete' ? now : null }
         });
+        madeProgress = true;
       } else if (action === 'complete' && !existing.completedAt) {
         const now = new Date();
         lessonProgress = await tx.lessonProgress.update({
           where: { id: existing.id },
           data: { startedAt: existing.startedAt ?? now, completedAt: now }
         });
+        madeProgress = true;
       } else if (action === 'start' && !existing.startedAt) {
         lessonProgress = await tx.lessonProgress.update({ where: { id: existing.id }, data: { startedAt: new Date() } });
+        madeProgress = true;
       } else {
         lessonProgress = existing;
+      }
+      if (madeProgress) {
+        const now = new Date();
+        await tx.courseActivity.upsert({
+          where: { learnerId_courseId: { learnerId, courseId } },
+          create: { learnerId, courseId, lastProgressAt: now },
+          update: { lastProgressAt: now }
+        });
+        // A later real progress event begins a new alert cycle; reopening/replaying does not.
+        await tx.alertDismissal.deleteMany({ where: { learnerId, courseId } });
       }
       const { courseProgress } = await calculateForEnrollment(tx, courseId, enrollment.id);
       const updatedEnrollment = await tx.enrollment.update({

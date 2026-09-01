@@ -1,5 +1,17 @@
 # Decisions
 
+## 46. README-defined progress inactivity
+
+- **Chose:** Course-specific `lastProgressAt`, updated only by real start/complete progress changes, with `IN_PROGRESS` learners inactive only when `lastProgressAt < now - 14 days`.
+- **Rejected:** The continuation brief's lesson-visit timestamp, frontend date arithmetic, enrollment-date inference, and a stored mutable `isInactive` flag.
+- **Why:** README is authoritative: it says no further *progress* for more than fourteen days. Exactly fourteen days is therefore not inactive; never-progressed enrollments do not gain invented alert dates.
+
+## 47. Query-time alerts and immutable history
+
+- **Chose:** Query-time inactive alerts filtered in PostgreSQL, one `(courseId, learnerId)` dismissal marker, and append-only server-authored activity logs.
+- **Rejected:** Creating alert rows on every page load, permanent dismissal, client-authored log actors/course IDs, pings, notifications, queues, or real-time services.
+- **Why:** This prevents duplicate alerts, allows a new alert after genuine later progress, keeps ownership/server identity authoritative, and implements only README-required behavior.
+
 ## 1. Course lifecycle is an enum, not deletion
 
 - **Chose:** `DRAFT`, `PUBLISHED`, and `ARCHIVED` `CourseStatus` values.

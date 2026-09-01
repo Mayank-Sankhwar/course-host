@@ -58,6 +58,7 @@ integrationDescribe('course lifecycle API with PostgreSQL', () => {
   });
 
   afterAll(async () => {
+    await prisma.activityLog.deleteMany({ where: { courseId: { in: createdCourseIds } } });
     await prisma.lessonProgress.deleteMany({ where: { enrollment: { courseId: { in: createdCourseIds } } } });
     await prisma.enrollment.deleteMany({ where: { courseId: { in: createdCourseIds } } });
     await prisma.lesson.deleteMany({ where: { courseId: { in: createdCourseIds } } });

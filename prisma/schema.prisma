@@ -51,6 +51,7 @@ model User {
   comments        Comment[]
   activityRecords ActivityLog[]    @relation("ActivityActor")
   alertDismissals AlertDismissal[] @relation("AlertDismissalLearner")
+  courseActivities CourseActivity[] @relation("CourseActivityLearner")
 }
 
 model Course {
@@ -68,6 +69,7 @@ model Course {
   comments        Comment[]
   activityLog     ActivityLog[]
   alertDismissals AlertDismissal[]
+  learnerActivities CourseActivity[]
 
   @@index([instructorId])
   @@index([status])
@@ -100,6 +102,7 @@ model Enrollment {
   learner        User                    @relation("EnrollmentLearner", fields: [learnerId], references: [id], onDelete: Restrict)
   course         Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict)
   lessonProgress LessonProgress[]
+  courseActivity CourseActivity? @relation("EnrollmentCourseActivity")
 
   @@unique([learnerId, courseId])
   @@index([courseId])
@@ -145,6 +148,23 @@ model ActivityLog {
   @@index([courseId, createdAt])
 }
 
+model CourseActivity {
+  id             String   @id @default(cuid())
+  learnerId      String
+  courseId       String
+  lastProgressAt DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  learner        User     @relation("CourseActivityLearner", fields: [learnerId], references: [id], onDelete: Restrict)
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  enrollment     Enrollment @relation("EnrollmentCourseActivity", fields: [learnerId, courseId], references: [learnerId, courseId], onDelete: Cascade)
+  alertDismissal AlertDismissal? @relation("CourseActivityAlertDismissal")
+
+  @@unique([courseId, learnerId])
+  @@unique([learnerId, courseId])
+  @@index([courseId, lastProgressAt])
+}
+
 model AlertDismissal {
   id          String   @id @default(cuid())
   courseId    String
@@ -152,6 +172,7 @@ model AlertDismissal {
   dismissedAt DateTime @default(now())
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
   learner     User     @relation("AlertDismissalLearner", fields: [learnerId], references: [id], onDelete: Restrict)
+  activity    CourseActivity @relation("CourseActivityAlertDismissal", fields: [courseId, learnerId], references: [courseId, learnerId], onDelete: Cascade)
 
   @@unique([courseId, learnerId])
   @@index([learnerId])

@@ -1,8 +1,16 @@
 # Database schema
 
+## Course activity and alerts
+
+`CourseActivity` is one current progress-activity row per learner/course: `id`, `learnerId`, `courseId`, `lastProgressAt`, `createdAt`, and `updatedAt`. Both compound unique constraints support its one-to-one relationships to the matching enrollment and optional alert dismissal. The course/timestamp index supports inactive-learner lookup. `lastProgressAt` is server-written only for real lesson-progress transitions.
+
+`AlertDismissal` remains unique on `(courseId, learnerId)`. It acknowledges the current inactive period; it does not mark a learner active. A later progress transition deletes the dismissal so a later inactive period can alert again.
+
+`ActivityLog` is append-only history with `courseId`, session-derived nullable `actorId`, enum `type`, bounded optional structured `details`, and `createdAt`. The application writes required course/lesson mutation, lifecycle, and comment events. No route edits/deletes logs or records passwords, sessions, or arbitrary bodies.
+
 ## Status
 
-This is the authoritative PostgreSQL/Prisma design. `prisma/schema.prisma` is formatted and valid, the initial migration is applied to the configured local PostgreSQL database, and Prisma Client is present. No schema change was needed for the lifecycle phase.
+This is the authoritative PostgreSQL/Prisma design. `prisma/schema.prisma` is formatted and valid, the initial migration and `20260901090000_course_activity` migration are applied to the configured local PostgreSQL database, and Prisma Client is present.
 
 ## Enums
 

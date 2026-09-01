@@ -1,6 +1,7 @@
-import { CourseStatus, Prisma, PrismaClient } from '@prisma/client';
+import { ActivityType, CourseStatus, Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
 import type { Course } from './types.js';
+import { writeActivityLog } from '../activity/log.js';
 
 const maxTransactionAttempts = 3;
 
@@ -46,6 +47,12 @@ export function createCourseLifecycleService(client: PrismaClient = prisma) {
               data: { status: transition.next }
             });
             if (updated.count !== 1) throw new CourseLifecycleError('INVALID_TRANSITION');
+
+            await writeActivityLog(tx, {
+              courseId,
+              actorId: instructorId,
+              type: action === 'publish' ? ActivityType.COURSE_PUBLISHED : action === 'archive' ? ActivityType.COURSE_ARCHIVED : ActivityType.COURSE_RESTORED
+            });
 
             return tx.course.findUniqueOrThrow({ where: { id: courseId } });
           }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

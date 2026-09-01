@@ -1,6 +1,7 @@
-import { CourseStatus, PrismaClient, Role } from '@prisma/client';
+import { ActivityType, CourseStatus, PrismaClient, Role } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
 import type { AuthenticatedUser } from '../auth/types.js';
+import { writeActivityLog } from '../activity/log.js';
 
 export class CommentAccessError extends Error {
   constructor(readonly kind: 'COURSE_NOT_FOUND' | 'FORBIDDEN' | 'COURSE_ARCHIVED') {
@@ -45,9 +46,13 @@ export function createCommentService(client: PrismaClient = prisma) {
 
     async create(courseId: string, user: AuthenticatedUser, input: CommentInput) {
       await accessCourse(client, courseId, user, false);
-      const comment = await client.comment.create({
-        data: { courseId, authorId: user.id, content: input.body },
-        include: { author: { select: { id: true, email: true, role: true } } }
+      const comment = await client.$transaction(async (tx) => {
+        const created = await tx.comment.create({
+          data: { courseId, authorId: user.id, content: input.body },
+          include: { author: { select: { id: true, email: true, role: true } } }
+        });
+        await writeActivityLog(tx, { courseId, actorId: user.id, type: ActivityType.COMMENT_CREATED, details: { commentId: created.id } });
+        return created;
       });
       return {
         id: comment.id,

@@ -1,5 +1,21 @@
 # Architecture
 
+## Activity history, progress activity, and alerts (confirmed)
+
+Course/lesson creation and edits, publish/archive/restore transitions, and comment creation write immutable `ActivityLog` records with the actor derived from the authenticated session. Only the owning instructor can retrieve a course log.
+
+```text
+Learner start/complete changes progress
+  ↓ (same transaction)
+CourseActivity(learnerId, courseId).lastProgressAt upsert
+  ↓
+Instructor activity/alerts request
+  ↓
+PostgreSQL filters PUBLISHED + IN_PROGRESS + lastProgressAt < server-now-minus-14-days
+```
+
+README defines inactivity as no further **progress** for more than fourteen days, not a page or lesson visit. Idempotent progress requests, catalogue, comments, and read requests do not update it. Archive excludes active alerts without deleting activity; restore leaves timestamps unchanged. Dismissal is a persisted marker, removed only by later real progress so a new inactive period can surface. Ping and learner notifications are not implemented because README does not require them.
+
 ## Confirmed
 
 The project is an npm-workspaces TypeScript monorepo: React/Vite in `apps/client`, Express in `apps/server`, and Prisma/PostgreSQL schema in `prisma`. The server provides health, authentication, instructor course management, instructor lesson management, and explicit instructor course-lifecycle routes. The client is a deliberately small instructor management interface.

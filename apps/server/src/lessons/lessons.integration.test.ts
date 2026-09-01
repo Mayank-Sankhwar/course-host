@@ -66,6 +66,7 @@ integrationDescribe('lesson management API with PostgreSQL', () => {
   });
 
   afterAll(async () => {
+    await prisma.activityLog.deleteMany({ where: { courseId: { in: createdCourseIds } } });
     await prisma.lessonProgress.deleteMany({ where: { enrollment: { learnerId: { in: createdUserIds } } } });
     await prisma.enrollment.deleteMany({ where: { learnerId: { in: createdUserIds } } });
     await prisma.lesson.deleteMany({ where: { courseId: { in: createdCourseIds } } });

@@ -209,3 +209,21 @@ No activity logging, inactivity classification/alerts, notifications, dashboard 
 ### Verification
 
 `npm run typecheck` passed after implementation. An initial real-PostgreSQL enrollment test run identified and fixed a test-fixture issue (string attachment interpreted as a path) and a multipart-size-boundary behavior. The final privileged test rerun was blocked by the Codex environment execution usage limit before it could start, so no full-suite success claim is made for this phase. The non-privileged `npm run build` attempt was likewise blocked by sandbox `spawn EPERM` when Vite attempted to start esbuild. The test suite file contains isolated PostgreSQL coverage for individual/bulk authorization, normalization, partial success, duplicate races, size/row limits, and the owner learner list. Earlier project verification remains recorded above.
+
+## Activity log, learner progress activity, and instructor alerts
+
+### Prompt
+
+The user requested activity history, learner activity tracking, 14-day inactivity, instructor alerts, PostgreSQL tests, documentation, and no Git history operations.
+
+### What changed
+
+Added `CourseActivity` plus a migration; actual lesson progress transitions atomically upsert its per-learner/course timestamp. Added owner-only activity, alert count/list/dismissal, and log endpoints, a minimal instructor activity view, and immutable logs for required course/lesson mutations and comments. Added PostgreSQL integration coverage.
+
+### README conflict and resolution
+
+The continuation brief described lesson visits, pings, and optional notifications. README instead defines `IN_PROGRESS` learners with no further **progress** for more than fourteen days and does not require ping/notifications. The implementation follows README: strict-more-than-14-day progress inactivity, no inferred timestamp for never-progressed enrollment, and no notification infrastructure.
+
+### Verification
+
+The migration was applied to local PostgreSQL; Prisma client generation and type checking passed. The first full test run executed all 40 tests successfully but cleanup exposed a missing comment deletion before course cleanup. That cleanup was fixed; the final privileged rerun was then blocked before starting by the Codex environment account usage limit, so it is not claimed as passed. No Git history operation was performed.

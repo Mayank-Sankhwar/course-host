@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { ActivityType, Role } from '@prisma/client';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import type { AuthUserRepository } from '../auth/types.js';
@@ -6,6 +6,7 @@ import { courseRepository } from './repository.js';
 import { CourseLifecycleError, courseLifecycleService, type CourseLifecycleAction } from './lifecycle.js';
 import type { Course, CourseRepository } from './types.js';
 import { validateCourseListQuery, validateCreateCourse, validateUpdateCourse } from './validation.js';
+import { activityLogClient, writeActivityLog } from '../activity/log.js';
 
 function safeCourse(course: Course) {
   return course;
@@ -20,6 +21,7 @@ export function createCourseRouter(users: AuthUserRepository, courses: CourseRep
     if (!result.success) return response.status(400).json({ error: result.message });
     try {
       const course = await courses.create({ ...result.data, instructorId: request.authUser!.id });
+      if (courses === courseRepository) await writeActivityLog(activityLogClient, { courseId: course.id, actorId: request.authUser!.id, type: ActivityType.COURSE_CREATED });
       response.status(201).json({ course: safeCourse(course) });
     } catch (error) { next(error); }
   });
@@ -58,6 +60,7 @@ export function createCourseRouter(users: AuthUserRepository, courses: CourseRep
       if (!course) return response.status(404).json({ error: 'Course not found.' });
       if (course.instructorId !== request.authUser!.id) return response.status(403).json({ error: 'You do not have permission to perform this action.' });
       const updated = await courses.update(course.id, result.data);
+      if (courses === courseRepository) await writeActivityLog(activityLogClient, { courseId: course.id, actorId: request.authUser!.id, type: ActivityType.COURSE_UPDATED });
       response.json({ course: safeCourse(updated) });
     } catch (error) { next(error); }
   });

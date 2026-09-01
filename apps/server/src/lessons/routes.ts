@@ -1,4 +1,4 @@
-import { Role } from '@prisma/client';
+import { ActivityType, Role } from '@prisma/client';
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import type { AuthUserRepository } from '../auth/types.js';
@@ -7,6 +7,7 @@ import type { CourseRepository } from '../courses/types.js';
 import { lessonRepository } from './repository.js';
 import { LastLessonDeletionError, LessonSetMismatchError, type LessonRepository } from './types.js';
 import { validateCreateLesson, validateReorderLessonIds, validateUpdateLesson } from './validation.js';
+import { activityLogClient, writeActivityLog } from '../activity/log.js';
 
 export function createLessonRouter(users: AuthUserRepository, courses: CourseRepository = courseRepository, lessons: LessonRepository = lessonRepository) {
   const router = Router({ mergeParams: true });
@@ -28,6 +29,7 @@ export function createLessonRouter(users: AuthUserRepository, courses: CourseRep
       const ownership = await ownedCourse(courseId, request.authUser!.id);
       if (!('course' in ownership)) return response.status(ownership.status).json({ error: ownership.message });
       const orderedLessons = await lessons.reorder(courseId, input.data);
+      if (lessons === lessonRepository) await writeActivityLog(activityLogClient, { courseId, actorId: request.authUser!.id, type: ActivityType.LESSON_REORDERED });
       response.json({ lessons: orderedLessons });
     } catch (error) {
       if (error instanceof LessonSetMismatchError) return response.status(400).json({ error: error.message });
@@ -44,6 +46,7 @@ export function createLessonRouter(users: AuthUserRepository, courses: CourseRep
       const ownership = await ownedCourse(courseId, request.authUser!.id);
       if (!('course' in ownership)) return response.status(ownership.status).json({ error: ownership.message });
       const lesson = await lessons.createAtEnd(courseId, input.data);
+      if (lessons === lessonRepository) await writeActivityLog(activityLogClient, { courseId, actorId: request.authUser!.id, type: ActivityType.LESSON_CREATED, details: { lessonId: lesson.id } });
       response.status(201).json({ lesson });
     } catch (error) { next(error); }
   });
@@ -80,7 +83,9 @@ export function createLessonRouter(users: AuthUserRepository, courses: CourseRep
       if (!('course' in ownership)) return response.status(ownership.status).json({ error: ownership.message });
       const lesson = await lessons.findByIdAndCourse(lessonId, courseId);
       if (!lesson) return response.status(404).json({ error: 'Lesson not found.' });
-      response.json({ lesson: await lessons.update(lesson.id, input.data) });
+      const updated = await lessons.update(lesson.id, input.data);
+      if (lessons === lessonRepository) await writeActivityLog(activityLogClient, { courseId, actorId: request.authUser!.id, type: ActivityType.LESSON_UPDATED, details: { lessonId: lesson.id } });
+      response.json({ lesson: updated });
     } catch (error) { next(error); }
   });
 
@@ -93,6 +98,7 @@ export function createLessonRouter(users: AuthUserRepository, courses: CourseRep
       const lesson = await lessons.findByIdAndCourse(lessonId, courseId);
       if (!lesson) return response.status(404).json({ error: 'Lesson not found.' });
       await lessons.deleteAndNormalize(courseId, lessonId);
+      if (lessons === lessonRepository) await writeActivityLog(activityLogClient, { courseId, actorId: request.authUser!.id, type: ActivityType.LESSON_DELETED, details: { lessonId } });
       response.status(204).end();
     } catch (error) {
       if (error instanceof LastLessonDeletionError) return response.status(409).json({ error: error.message });
