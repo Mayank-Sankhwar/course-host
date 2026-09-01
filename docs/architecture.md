@@ -1,5 +1,11 @@
 # Architecture
 
+## Role-specific application integration (confirmed)
+
+`GET /api/auth/me` establishes the UI session, then the React shell renders role-appropriate navigation. Instructors use Dashboard, Courses, and Activity/Alerts; learners use Catalogue and My Courses. The frontend only chooses what to display—the session-backed API continues to enforce roles, ownership, enrollment, visibility, progress, and lifecycle rules.
+
+The instructor dashboard is a small owner-scoped read model: headline metrics, enrollments by course/progress state, and eight-week completion trend are calculated in PostgreSQL through `GET /api/dashboard`. Course detail reuses the existing typed API clients in metadata, lessons, learners, activity/alerts, and discussion tabs. The learner catalogue retains its server-side query, filtering, sorting, total and pagination; My Courses and lesson progress always refresh from server responses.
+
 ## Activity history, progress activity, and alerts (confirmed)
 
 Course/lesson creation and edits, publish/archive/restore transitions, and comment creation write immutable `ActivityLog` records with the actor derived from the authenticated session. Only the owning instructor can retrieve a course log.

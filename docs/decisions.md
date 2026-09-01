@@ -1,5 +1,17 @@
 # Decisions
 
+## 48. Role-specific shell, server-backed UI state
+
+- **Chose:** One minimal React shell selected from `/api/auth/me`, with instructor and learner navigation, typed API clients, and local component state.
+- **Rejected:** localStorage roles, client authorization, duplicated fetch code, Redux/Zustand/React Query, or a UI framework.
+- **Why:** The existing authenticated backend remains the security boundary; the application stays understandable and dependency-light while all important data comes from existing server APIs.
+
+## 49. Dashboard as an owner-scoped read model
+
+- **Chose:** A single authenticated instructor dashboard endpoint that calculates required metrics, breakdowns, and eight-week trend from existing Prisma tables.
+- **Rejected:** schema changes, browser aggregation of paginated data, or background analytics infrastructure.
+- **Why:** README requires the dashboard but the prior API surface had no way to retrieve it. The read-only query keeps values authoritative and scoped to the session instructor.
+
 ## 46. README-defined progress inactivity
 
 - **Chose:** Course-specific `lastProgressAt`, updated only by real start/complete progress changes, with `IN_PROGRESS` learners inactive only when `lastProgressAt < now - 14 days`.

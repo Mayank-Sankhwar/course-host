@@ -4,7 +4,7 @@ import { CourseDiscussion } from './course-discussion';
 
 type EnrolledCourse = { enrollment: { id: string; courseId: string }; course: LearnerCourse; progress: CourseProgress };
 
-export function LearnerManager() {
+export function LearnerManager({ initialView }: { initialView: 'catalogue' | 'my-courses' }) {
   const [available, setAvailable] = useState<LearnerCourse[]>([]);
   const [enrolled, setEnrolled] = useState<EnrolledCourse[]>([]);
   const [selected, setSelected] = useState<EnrolledCourse | null>(null);
@@ -84,8 +84,8 @@ export function LearnerManager() {
   }
 
   const enrolledCourseIds = new Set(enrolled.map((item) => item.course.id));
-  return <section>
-    <h2>Available published courses</h2>
+  return <section className="card">
+    {initialView === 'catalogue' && <><h2>Available published courses</h2>
     {error && <p role="alert">{error}</p>}
     <form onSubmit={preventSubmit}>
       <label>Search <input value={search} onChange={(event) => resetPage(() => setSearch(event.target.value))} /></label>
@@ -97,9 +97,10 @@ export function LearnerManager() {
     </form>
     <p>{catalogue.total} matching courses</p>
     <ul>{available.map((course) => <li key={course.id}><strong>{course.title}</strong> — {course.category} — Instructor: {course.instructor.email} — {course.enrollmentCount} enrollments {!enrolledCourseIds.has(course.id) ? <button onClick={() => void enroll(course.id)}>Enroll</button> : 'Already enrolled'}</li>)}</ul>
-    <button onClick={() => setPage(page - 1)} disabled={page <= 1}>Previous page</button> <span>Page {page} of {catalogue.totalPages}</span> <button onClick={() => setPage(page + 1)} disabled={page >= catalogue.totalPages}>Next page</button>
-    <h2>My courses</h2>
+    {available.length === 0 && <p className="empty">No courses found.</p>}<button onClick={() => setPage(page - 1)} disabled={page <= 1}>Previous page</button> <span>Page {page} of {catalogue.totalPages}</span> <button onClick={() => setPage(page + 1)} disabled={page >= catalogue.totalPages}>Next page</button></>}
+    {initialView === 'my-courses' && <><h2>My courses</h2>
     <ul>{enrolled.map((item) => <li key={item.enrollment.id}><strong>{item.course.title}</strong> — {item.course.status} — {item.progress.completionPercentage}% <button onClick={() => void openCourse(item)}>Open</button></li>)}</ul>
+    {enrolled.length === 0 && <p className="empty">No enrolled courses yet.</p>}
     {selected && <section>
       <h3>{selected.course.title}</h3>
       <p>{selected.course.description}</p>
@@ -107,6 +108,6 @@ export function LearnerManager() {
       <ol>{lessons.map((lesson) => <li key={lesson.id}><strong>{lesson.position}. {lesson.title}</strong> — {lesson.progressState} <button onClick={() => { setCurrentLesson(lesson); void progressAction(lesson.id, 'start'); }}>Open lesson</button> <button onClick={() => void progressAction(lesson.id, 'complete')}>Complete</button></li>)}</ol>
       {currentLesson && <article><h4>{currentLesson.title}</h4><p>{currentLesson.content}</p></article>}
       <CourseDiscussion courseId={selected.course.id} />
-    </section>}
+    </section>}</>}
   </section>;
 }

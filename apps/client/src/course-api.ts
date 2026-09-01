@@ -6,6 +6,7 @@ export type Course = {
   status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
   createdAt: string;
   updatedAt: string;
+  enrollmentCount?: number;
 };
 
 type CourseList = { courses: Course[]; page: number; limit: number; total: number; totalPages: number };
@@ -14,6 +15,12 @@ export type BulkEnrollmentResult = { email: string; status: 'ADDED' | 'ALREADY_E
 export type LearnerActivity = { enrollment: { id: string; enrolledAt: string; progressState: InstructorEnrollment['progressState'] }; learner: { id: string; email: string }; lastProgressAt: string | null; state: 'NOT_STARTED' | 'ACTIVE' | 'INACTIVE' };
 export type InactivityAlert = { learner: { id: string; email: string }; lastProgressAt: string; state: 'INACTIVE'; daysSinceLastProgress: number };
 export type ActivityRecord = { id: string; type: string; createdAt: string; details: unknown; actor: { id: string; email: string; role: string } | null };
+export type InstructorDashboard = {
+  totals: { totalLearners: number; publishedCourses: number; completionsThisMonth: number; inProgress: number };
+  enrollmentByCourse: { id: string; title: string; enrollmentCount: number }[];
+  enrollmentByState: { state: InstructorEnrollment['progressState']; count: number }[];
+  completionTrend: { start: string; completed: number }[];
+};
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -56,5 +63,6 @@ export const courseApi = {
   alerts: (courseId: string) => request<{ alerts: InactivityAlert[] }>(`/api/courses/${courseId}/alerts`),
   dismissAlert: (courseId: string, learnerId: string) => request<void>(`/api/courses/${courseId}/alerts/${learnerId}/dismiss`, { method: 'POST' }),
   alertCount: () => request<{ count: number }>('/api/alerts/count'),
-  activityLog: (courseId: string) => request<{ records: ActivityRecord[]; total: number }>(`/api/courses/${courseId}/activity-log`)
+  activityLog: (courseId: string) => request<{ records: ActivityRecord[]; total: number }>(`/api/courses/${courseId}/activity-log`),
+  dashboard: () => request<InstructorDashboard>('/api/dashboard')
 };

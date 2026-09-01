@@ -15,7 +15,8 @@
 | 9. Learner course experience and comments | Server-backed course material/progress experience and course-level comments for participants. | Real PostgreSQL lesson/progress and comment authorization, validation, ordering, archive/restore tests. | 1 h | Complete |
 | 10. Instructor enrollment and CSV | Owner-scoped individual learner add, bounded CSV partial success, and learner list. | Real PostgreSQL ownership, roles, duplicates/races, CSV parsing, and safe-list tests. | 1 h | Implementation complete; final full test rerun blocked by environment execution limit |
 | 11. Activity history and alerts | Immutable required course/comment history, progress activity, and 14-day instructor alerts/dismissal. | Real PostgreSQL activity, threshold, ownership, archive, dismissal/re-alert, and log tests. | 1 h | Complete |
-| 12. Reporting and finish | Dashboard, final security review, deployment, and submission. | End-to-end smoke tests. | 1 h | Pending |
+| 12. Dashboard and UI integration | Role-specific shell, dashboard metrics, coherent course/learner workflow, navigation, and responsive baseline. | Typecheck, build, full regression, and browser/Postman checklist. | 1 h | Implementation complete; final privileged regression may be environment-limited |
+| 13. Final delivery | Final security review, deployment preparation, and submission. | End-to-end smoke tests and submission review. | 1 h | Pending |
 
 Database constraints precede behavior so later services have reliable persistence invariants. Stretch goals remain out of scope.
 

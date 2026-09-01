@@ -1,5 +1,19 @@
 # AI prompts
 
+## Instructor dashboard and application UI integration
+
+### Prompt
+
+The user requested a coherent role-specific React application, existing API integration, instructor dashboard, course detail management, learner catalogue/My Courses experience, responsive baseline, documentation, and no Git history changes.
+
+### What changed
+
+Added the owner-scoped dashboard read endpoint and client, dashboard metrics/breakdown/trend screen, role-specific navigation, alert badge, responsive base CSS, a course-detail tab view that reuses metadata/lesson/enrollment/activity/discussion modules, and learner Catalogue/My Courses navigation. No Prisma schema or dependency changed.
+
+### Verification
+
+Type checking passed after integration. The frontend TypeScript stage of `npm run build` also completed, but Vite could not spawn esbuild in the sandbox (`EPERM`). Prisma validate/generate/status could not fetch the CLI engine under restricted networking; no schema changed in this phase, and the prior migration/client generation remains recorded. The full privileged test rerun remained unavailable because of the Codex account usage limit. No Git history operation was performed.
+
 ## Initial project foundation
 
 ### Prompt

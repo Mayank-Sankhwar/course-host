@@ -12,6 +12,7 @@ import { createLearnerRouter } from './learner/routes.js';
 import { createCommentRouter } from './comments/routes.js';
 import { createInstructorEnrollmentRouter } from './enrollments/routes.js';
 import { createInstructorActivityRouter } from './activity/routes.js';
+import { createDashboardRouter } from './dashboard/routes.js';
 
 type AppOptions = {
   clientOrigin: string;
@@ -51,6 +52,7 @@ export function createApp(options: AppOptions) {
   app.use('/api/courses', createCommentRouter(users));
   app.use('/api/courses', createInstructorEnrollmentRouter(users));
   app.use('/api', createInstructorActivityRouter(users));
+  app.use('/api', createDashboardRouter(users));
   app.use('/api', createLearnerRouter(users));
   options.registerRoutes?.(app);
 
