@@ -43,6 +43,23 @@ async function upload<T>(path: string, file: File): Promise<T> {
   return payload;
 }
 
+function downloadFilename(header: string | null, fallback: string) {
+  const match = header?.match(/filename="?([^";]+)"?/i);
+  return match?.[1] ?? fallback;
+}
+
+async function downloadCsv(courseId: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`${apiBaseUrl}/api/courses/${courseId}/enrollments/export.csv`, { credentials: 'include' });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(payload?.error ?? 'Unable to export learner progress.');
+  }
+  return {
+    blob: await response.blob(),
+    filename: downloadFilename(response.headers.get('Content-Disposition'), `course-progress-${courseId}.csv`)
+  };
+}
+
 export const courseApi = {
   list: () => request<CourseList>('/api/courses?sort=createdAt&direction=desc'),
   create: (input: Pick<Course, 'title' | 'description' | 'category'>) => request<{ course: Course }>('/api/courses', {
@@ -58,6 +75,7 @@ export const courseApi = {
     method: 'POST', body: JSON.stringify({ email })
   }),
   bulkEnroll: (courseId: string, file: File) => upload<{ summary: Record<string, number>; results: BulkEnrollmentResult[] }>(`/api/courses/${courseId}/enrollments/bulk`, file),
+  exportProgressCsv: (courseId: string) => downloadCsv(courseId),
   enrollments: (courseId: string, page = 1, limit = 20) => request<{ enrollments: InstructorEnrollment[]; page: number; limit: number; total: number; totalPages: number }>(`/api/courses/${courseId}/enrollments?page=${page}&limit=${limit}`),
   activity: (courseId: string) => request<{ learners: LearnerActivity[]; total: number }>(`/api/courses/${courseId}/activity`),
   alerts: (courseId: string) => request<{ alerts: InactivityAlert[] }>(`/api/courses/${courseId}/alerts`),

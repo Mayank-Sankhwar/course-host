@@ -24,13 +24,13 @@ export function ActivityManager({ courseId, courseTitle }: { courseId: string; c
     catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Unable to dismiss alert.'); }
   }
   return <section>
-    <h3>Activity: {courseTitle}</h3>
+    <div className="page-heading"><div><h3>Activity & alerts</h3><p className="helper-text">Review learner engagement and immutable history for {courseTitle}.</p></div></div>
     {error && <p role="alert">{error}</p>}
     <h4>Enrolled learner activity</h4>
-    <ul>{learners.map((item) => <li key={item.enrollment.id}>{item.learner.email} — enrolled {new Date(item.enrollment.enrolledAt).toLocaleDateString()} — {displayActivity(item)}</li>)}</ul>
+    {learners.length ? <ul className="data-list">{learners.map((item) => <li className="item-row" key={item.enrollment.id}><span>{item.learner.email} <small className="helper-text">· enrolled {new Date(item.enrollment.enrolledAt).toLocaleDateString()}</small></span><span className={`status-badge status-${item.state.toLowerCase()}`}>{displayActivity(item)}</span></li>)}</ul> : <p className="empty">No learner activity yet.</p>}
     <h4>Inactivity alerts</h4>
-    {alerts.length === 0 ? <p>No active inactivity alerts.</p> : <ul>{alerts.map((alert) => <li key={alert.learner.id}>{alert.learner.email} — no progress for {alert.daysSinceLastProgress} days <button onClick={() => void dismiss(alert.learner.id)}>Dismiss</button></li>)}</ul>}
+    {alerts.length === 0 ? <p className="empty">No active inactivity alerts.</p> : <ul className="data-list">{alerts.map((alert) => <li className="item-row" key={alert.learner.id}><span>{alert.learner.email} — no progress for {alert.daysSinceLastProgress} days</span><button onClick={() => void dismiss(alert.learner.id)}>Dismiss</button></li>)}</ul>}
     <h4>Immutable course history</h4>
-    <ul>{records.map((record) => <li key={record.id}>{new Date(record.createdAt).toLocaleString()} — {record.type} — {record.actor?.email ?? 'Unknown actor'}</li>)}</ul>
+    {records.length ? <ul className="data-list">{records.map((record) => <li key={record.id}>{new Date(record.createdAt).toLocaleString()} — {record.type.replaceAll('_', ' ')} — {record.actor?.email ?? 'Unknown actor'}</li>)}</ul> : <p className="empty">No history has been recorded yet.</p>}
   </section>;
 }

@@ -8,6 +8,7 @@ export function EnrollmentManager({ courseId, courseTitle }: { courseId: string;
   const [total, setTotal] = useState(0);
   const [result, setResult] = useState<{ summary: Record<string, number>; results: BulkEnrollmentResult[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   async function loadEnrollments() {
     try {
@@ -47,13 +48,33 @@ export function EnrollmentManager({ courseId, courseTitle }: { courseId: string;
     }
   }
 
+  async function exportProgress() {
+    setError(null);
+    setExporting(true);
+    try {
+      const { blob, filename } = await courseApi.exportProgressCsv(courseId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Unable to export learner progress.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return <section>
-    <h3>Enroll learners: {courseTitle}</h3>
+    <div className="page-heading"><div><h3>Enroll learners</h3><p className="helper-text">Manage learners for {courseTitle}.</p></div><span className="status-badge status-info">{total} enrolled</span></div>
     {error && <p role="alert">{error}</p>}
     <form onSubmit={addLearner}><label>Learner email <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><button type="submit">Add learner</button></form>
     <form onSubmit={upload}><label>CSV file <input type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} required /></label><button type="submit">Upload CSV</button></form>
-    <p>{total} enrolled learners</p>
-    <ul>{enrollments.map((enrollment) => <li key={enrollment.id}>{enrollment.learner.email} — {enrollment.progressState}</li>)}</ul>
-    {result && <section><h4>Bulk enrollment results</h4><p>Total: {result.summary.total}; Added: {result.summary.added}; Already enrolled: {result.summary.alreadyEnrolled}; Not registered: {result.summary.learnerNotFound}; Invalid: {result.summary.invalidEmail}</p><table><thead><tr><th>Email</th><th>Status</th></tr></thead><tbody>{result.results.map((row, index) => <tr key={`${row.email}-${index}`}><td>{row.email}</td><td>{row.status}</td></tr>)}</tbody></table></section>}
+    <div className="actions"><button className="button-primary" type="button" onClick={() => void exportProgress()} disabled={exporting}>{exporting ? 'Exporting…' : 'Export Progress CSV'}</button></div>
+    {enrollments.length ? <ul className="data-list">{enrollments.map((enrollment) => <li className="item-row" key={enrollment.id}><span>{enrollment.learner.email}</span><span className={`status-badge status-${enrollment.progressState.toLowerCase().replaceAll('_', '-')}`}>{enrollment.progressState.replaceAll('_', ' ')}</span></li>)}</ul> : <p className="empty">No learners are enrolled yet.</p>}
+    {result && <section className="subsection"><h4>Bulk enrollment results</h4><p className="helper-text">Total: {result.summary.total}; Added: {result.summary.added}; Already enrolled: {result.summary.alreadyEnrolled}; Not registered: {result.summary.learnerNotFound}; Invalid: {result.summary.invalidEmail}</p><div className="table-wrap"><table><thead><tr><th>Email</th><th>Status</th></tr></thead><tbody>{result.results.map((row, index) => <tr key={`${row.email}-${index}`}><td>{row.email}</td><td><span className="status-badge status-info">{row.status}</span></td></tr>)}</tbody></table></div></section>}
   </section>;
 }

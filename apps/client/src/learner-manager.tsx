@@ -3,6 +3,7 @@ import { learnerApi, type CourseProgress, type LearnerCourse, type LearnerLesson
 import { CourseDiscussion } from './course-discussion';
 
 type EnrolledCourse = { enrollment: { id: string; courseId: string }; course: LearnerCourse; progress: CourseProgress };
+const statusClass = (status: string) => `status-badge status-${status.toLowerCase().replaceAll('_', '-')}`;
 
 export function LearnerManager({ initialView }: { initialView: 'catalogue' | 'my-courses' }) {
   const [available, setAvailable] = useState<LearnerCourse[]>([]);
@@ -85,7 +86,7 @@ export function LearnerManager({ initialView }: { initialView: 'catalogue' | 'my
 
   const enrolledCourseIds = new Set(enrolled.map((item) => item.course.id));
   return <section className="card">
-    {initialView === 'catalogue' && <><h2>Available published courses</h2>
+    {initialView === 'catalogue' && <><div className="page-heading"><div><h2>Course catalogue</h2><p>Discover published courses and enroll when you are ready.</p></div></div>
     {error && <p role="alert">{error}</p>}
     <form onSubmit={preventSubmit}>
       <label>Search <input value={search} onChange={(event) => resetPage(() => setSearch(event.target.value))} /></label>
@@ -95,18 +96,18 @@ export function LearnerManager({ initialView }: { initialView: 'catalogue' | 'my
       <label>Order <select value={direction} onChange={(event) => resetPage(() => setDirection(event.target.value as typeof direction))}><option value="desc">Descending</option><option value="asc">Ascending</option></select></label>
       <label>Page size <select value={limit} onChange={(event) => { setLimit(Number(event.target.value)); setPage(1); }}><option value={5}>5</option><option value={10}>10</option><option value={20}>20</option></select></label>
     </form>
-    <p>{catalogue.total} matching courses</p>
-    <ul>{available.map((course) => <li key={course.id}><strong>{course.title}</strong> — {course.category} — Instructor: {course.instructor.email} — {course.enrollmentCount} enrollments {!enrolledCourseIds.has(course.id) ? <button onClick={() => void enroll(course.id)}>Enroll</button> : 'Already enrolled'}</li>)}</ul>
-    {available.length === 0 && <p className="empty">No courses found.</p>}<button onClick={() => setPage(page - 1)} disabled={page <= 1}>Previous page</button> <span>Page {page} of {catalogue.totalPages}</span> <button onClick={() => setPage(page + 1)} disabled={page >= catalogue.totalPages}>Next page</button></>}
-    {initialView === 'my-courses' && <><h2>My courses</h2>
-    <ul>{enrolled.map((item) => <li key={item.enrollment.id}><strong>{item.course.title}</strong> — {item.course.status} — {item.progress.completionPercentage}% <button onClick={() => void openCourse(item)}>Open</button></li>)}</ul>
+    <p className="helper-text">{catalogue.total} matching courses</p>
+    <div className="course-list">{available.map((course) => <article className="course-card" key={course.id}><div className="course-card-header"><strong>{course.title}</strong><span className="status-badge status-published">Published</span></div><p>{course.category} · Instructor: {course.instructor.email}</p><p className="meta">{course.enrollmentCount} enrollments</p><div className="actions">{!enrolledCourseIds.has(course.id) ? <button className="button-primary" onClick={() => void enroll(course.id)}>Enroll</button> : <span className="status-badge status-completed">Already enrolled</span>}</div></article>)}</div>
+    {available.length === 0 && <p className="empty">No courses match these filters. Try adjusting your search.</p>}<div className="actions"><button onClick={() => setPage(page - 1)} disabled={page <= 1}>Previous page</button> <span className="helper-text">Page {page} of {catalogue.totalPages}</span> <button onClick={() => setPage(page + 1)} disabled={page >= catalogue.totalPages}>Next page</button></div></>}
+    {initialView === 'my-courses' && <><div className="page-heading"><div><h2>My courses</h2><p>Continue your learning and track progress across enrolled courses.</p></div></div>
+    <div className="course-list">{enrolled.map((item) => <article className="course-card" key={item.enrollment.id}><div className="course-card-header"><strong>{item.course.title}</strong><span className={statusClass(item.course.status)}>{item.course.status}</span></div><p className="meta">{item.progress.completionPercentage}% complete</p><div className="actions"><button className="button-primary" onClick={() => void openCourse(item)}>Open course</button></div></article>)}</div>
     {enrolled.length === 0 && <p className="empty">No enrolled courses yet.</p>}
-    {selected && <section>
+    {selected && <section className="subsection">
       <h3>{selected.course.title}</h3>
       <p>{selected.course.description}</p>
-      {courseProgress && <p>Course progress: {courseProgress.state} ({courseProgress.completedLessons}/{courseProgress.totalLessons}, {courseProgress.completionPercentage}%)</p>}
-      <ol>{lessons.map((lesson) => <li key={lesson.id}><strong>{lesson.position}. {lesson.title}</strong> — {lesson.progressState} <button onClick={() => { setCurrentLesson(lesson); void progressAction(lesson.id, 'start'); }}>Open lesson</button> <button onClick={() => void progressAction(lesson.id, 'complete')}>Complete</button></li>)}</ol>
-      {currentLesson && <article><h4>{currentLesson.title}</h4><p>{currentLesson.content}</p></article>}
+      {courseProgress && <p className="item-row"><span>Course progress</span><span className={statusClass(courseProgress.state)}>{courseProgress.state.replaceAll('_', ' ')} · {courseProgress.completedLessons}/{courseProgress.totalLessons} · {courseProgress.completionPercentage}%</span></p>}
+      <ol className="lesson-list">{lessons.map((lesson) => <li key={lesson.id}><strong>{lesson.position}. {lesson.title}</strong> <span className={statusClass(lesson.progressState)}>{lesson.progressState.replaceAll('_', ' ')}</span> <button onClick={() => { setCurrentLesson(lesson); void progressAction(lesson.id, 'start'); }}>Open lesson</button> <button className="button-primary" onClick={() => void progressAction(lesson.id, 'complete')}>Complete</button></li>)}</ol>
+      {currentLesson && <article className="subsection"><h4>{currentLesson.title}</h4><p>{currentLesson.content}</p></article>}
       <CourseDiscussion courseId={selected.course.id} />
     </section>}</>}
   </section>;

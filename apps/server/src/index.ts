@@ -14,7 +14,7 @@ if (process.env.NODE_ENV === 'production' && !clientOrigin) {
 }
 
 const app = createApp({
-  clientOrigin: clientOrigin ?? 'http://localhost:5173',
+  clientOrigin: clientOrigin ?? 'http://localhost:5174',
   isProduction: process.env.NODE_ENV === 'production',
   sessionSecret
 });

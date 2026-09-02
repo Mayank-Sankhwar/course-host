@@ -36,12 +36,12 @@ export function CourseDiscussion({ courseId }: { courseId: string }) {
 
   const words = wordCount(body);
   return <section>
-    <h3>Course discussion</h3>
+    <div className="page-heading"><div><h3>Course discussion</h3><p className="helper-text">Share questions and updates with the course community.</p></div></div>
     {error && <p role="alert">{error}</p>}
-    <ul>{comments.map((comment) => <li key={comment.id}><strong>{comment.author.email}</strong> — {new Date(comment.createdAt).toLocaleString()}<p>{comment.body}</p></li>)}</ul>
+    {comments.length ? <ul className="data-list">{comments.map((comment) => <li key={comment.id}><strong>{comment.author.email}</strong> <span className="helper-text">— {new Date(comment.createdAt).toLocaleString()}</span><p>{comment.body}</p></li>)}</ul> : <p className="empty">No comments yet. Start the discussion below.</p>}
     <form onSubmit={submit}>
       <label>Comment <textarea value={body} onChange={(event) => setBody(event.target.value)} required /></label>
-      <p>{words} / 50 words</p>
+      <p className="helper-text">{words} / 50 words</p>
       <button type="submit" disabled={words === 0 || words > 50}>Post comment</button>
     </form>
   </section>;

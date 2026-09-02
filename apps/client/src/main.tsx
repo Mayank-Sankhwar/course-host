@@ -45,21 +45,24 @@ function AuthenticationApp() {
     setUser(null);
   }
 
-  if (user) return <main><header className="topbar"><h1>CourseHost</h1><span>{user.email}</span><nav>{user.role === 'INSTRUCTOR' ? <><button aria-current={view === 'dashboard' ? 'page' : undefined} onClick={() => setView('dashboard')}>Dashboard</button><button aria-current={view === 'courses' ? 'page' : undefined} onClick={() => setView('courses')}>Courses</button><button aria-current={view === 'alerts' ? 'page' : undefined} onClick={() => setView('alerts')}>Activity / Alerts<AlertBadge /></button></> : <><button aria-current={view === 'catalogue' ? 'page' : undefined} onClick={() => setView('catalogue')}>Catalogue</button><button aria-current={view === 'my-courses' ? 'page' : undefined} onClick={() => setView('my-courses')}>My Courses</button></>}<button onClick={() => void logout()}>Log out</button></nav></header>{user.role === 'INSTRUCTOR' && view === 'dashboard' && <InstructorDashboardView />}{user.role === 'INSTRUCTOR' && view === 'courses' && <CourseManager />}{user.role === 'INSTRUCTOR' && view === 'alerts' && <CourseManager initialActivity />}{user.role === 'LEARNER' && <LearnerManager initialView={view === 'my-courses' ? 'my-courses' : 'catalogue'} />}</main>;
+  if (user) return <div className="app-shell"><header className="topbar"><h1 className="brand">CourseHost</h1><div className="user-meta"><strong title={user.email}>{user.email}</strong><span className="role-label">{user.role.toLowerCase()}</span></div><nav aria-label="Primary navigation">{user.role === 'INSTRUCTOR' ? <><button aria-current={view === 'dashboard' ? 'page' : undefined} onClick={() => setView('dashboard')}>Dashboard</button><button aria-current={view === 'courses' ? 'page' : undefined} onClick={() => setView('courses')}>Courses</button><button aria-current={view === 'alerts' ? 'page' : undefined} onClick={() => setView('alerts')}>Activity / Alerts<AlertBadge /></button></> : <><button aria-current={view === 'catalogue' ? 'page' : undefined} onClick={() => setView('catalogue')}>Catalogue</button><button aria-current={view === 'my-courses' ? 'page' : undefined} onClick={() => setView('my-courses')}>My Courses</button></>}<button className="logout-button" onClick={() => void logout()}>Log out</button></nav></header><main className="app-content">{user.role === 'INSTRUCTOR' && view === 'dashboard' && <InstructorDashboardView />}{user.role === 'INSTRUCTOR' && view === 'courses' && <CourseManager />}{user.role === 'INSTRUCTOR' && view === 'alerts' && <CourseManager initialActivity />}{user.role === 'LEARNER' && <LearnerManager initialView={view === 'my-courses' ? 'my-courses' : 'catalogue'} />}</main></div>;
 
   return (
-    <main>
+    <main className="auth-layout">
+      <section className="auth-card" aria-labelledby="auth-title">
       <h1>CourseHost</h1>
-      <h2>{mode === 'login' ? 'Log in' : 'Create learner account'}</h2>
+      <h2 id="auth-title">{mode === 'login' ? 'Welcome back' : 'Create learner account'}</h2>
+      <p className="helper-text">{mode === 'login' ? 'Log in to continue learning or managing your courses.' : 'Get started with your learner account.'}</p>
       <form onSubmit={submit}>
         <label>Email <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
         <label>Password <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required /></label>
         <button type="submit">{mode === 'login' ? 'Log in' : 'Sign up'}</button>
       </form>
       {error && <p role="alert">{error}</p>}
-      <button onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
+      <button className="auth-switch" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
         {mode === 'login' ? 'Need a learner account?' : 'Already have an account?'}
       </button>
+      </section>
     </main>
   );
 }

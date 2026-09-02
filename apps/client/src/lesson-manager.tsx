@@ -66,7 +66,7 @@ export function LessonManager({ courseId, courseTitle }: { courseId: string; cou
 
   return (
     <section>
-      <h3>Lessons: {courseTitle}</h3>
+      <div className="page-heading"><div><h3>Lessons</h3><p className="helper-text">Create and order lessons for {courseTitle}.</p></div></div>
       <form onSubmit={submit}>
         <label>Title <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required /></label>
         <label>Content <textarea value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} required /></label>
@@ -74,14 +74,15 @@ export function LessonManager({ courseId, courseTitle }: { courseId: string; cou
         {editing && <button type="button" onClick={() => { setEditing(null); setForm(emptyLesson); }}>Cancel</button>}
       </form>
       {error && <p role="alert">{error}</p>}
-      <ol>
+      {lessons.length === 0 && <p className="empty">No lessons yet. Add the first lesson above to publish this course.</p>}
+      <ol className="lesson-list">
         {lessons.map((lesson, index) => (
           <li key={lesson.id}>
             <strong>{lesson.title}</strong>
             <button onClick={() => void move(index, -1)} disabled={index === 0}>Move up</button>
             <button onClick={() => void move(index, 1)} disabled={index === lessons.length - 1}>Move down</button>
             <button onClick={() => edit(lesson)}>Edit</button>
-            <button onClick={() => void remove(lesson)}>Delete</button>
+            <button className="button-danger" onClick={() => void remove(lesson)}>Delete</button>
           </li>
         ))}
       </ol>
