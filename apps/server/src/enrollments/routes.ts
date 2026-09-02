@@ -6,6 +6,19 @@ import { isValidEmail, normalizeEmail } from '../auth/validation.js';
 import { CsvValidationError, csvLimits, multipartCsv, parseEmailCsv } from './csv.js';
 import { InstructorEnrollmentError, instructorEnrollmentService } from './service.js';
 
+function csvCell(value: string | number) {
+  const text = String(value);
+  const formulaSafe = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return /[",\r\n]/.test(formulaSafe) ? `"${formulaSafe.replaceAll('"', '""')}"` : formulaSafe;
+}
+
+function progressCsv(rows: { email: string; progress: { state: string; completedLessons: number; totalLessons: number; completionPercentage: number } }[]) {
+  const header = ['learner_email', 'progress_state', 'completed_lessons', 'total_lessons', 'completion_percentage'];
+  return [header, ...rows.map(({ email, progress }) => [email, progress.state, progress.completedLessons, progress.totalLessons, progress.completionPercentage])]
+    .map((row) => row.map(csvCell).join(','))
+    .join('\r\n') + '\r\n';
+}
+
 function errorResponse(error: InstructorEnrollmentError) {
   if (error.kind === 'COURSE_NOT_FOUND') return { status: 404, message: 'Course not found.' };
   if (error.kind === 'LEARNER_NOT_FOUND') return { status: 404, message: 'Learner is not registered.' };
@@ -69,6 +82,22 @@ export function createInstructorEnrollmentRouter(users: AuthUserRepository) {
     try {
       const result = await instructorEnrollmentService.list(courseId, request.authUser!.id, values.skip, values.limit);
       response.json({ ...result, page: values.page, limit: values.limit, totalPages: Math.ceil(result.total / values.limit) });
+    } catch (error) {
+      if (error instanceof InstructorEnrollmentError) { const result = errorResponse(error); return response.status(result.status).json({ error: result.message }); }
+      next(error);
+    }
+  });
+
+  router.get('/:courseId/enrollments/export.csv', ...instructorOnly, async (request, response, next) => {
+    const courseId = request.params.courseId;
+    if (typeof courseId !== 'string') return response.status(404).json({ error: 'Course not found.' });
+    try {
+      const result = await instructorEnrollmentService.progressExport(courseId, request.authUser!.id);
+      response
+        .status(200)
+        .type('text/csv')
+        .set('Content-Disposition', `attachment; filename="course-progress-${result.course.id}.csv"`)
+        .send(progressCsv(result.rows));
     } catch (error) {
       if (error instanceof InstructorEnrollmentError) { const result = errorResponse(error); return response.status(result.status).json({ error: result.message }); }
       next(error);

@@ -23,13 +23,13 @@ function retryable(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2034' || error.code === 'P2002');
 }
 
-function lessonState(progress: { startedAt: Date | null; completedAt: Date | null } | undefined) {
+export function lessonState(progress: { startedAt: Date | null; completedAt: Date | null } | undefined) {
   if (progress?.completedAt) return 'COMPLETED' as const;
   if (progress?.startedAt) return 'IN_PROGRESS' as const;
   return 'NOT_STARTED' as const;
 }
 
-function calculatedProgress(lessons: { id: string }[], progressRows: { lessonId: string; startedAt: Date | null; completedAt: Date | null }[]): CourseProgress {
+export function calculatedProgress(lessons: { id: string }[], progressRows: { lessonId: string; startedAt: Date | null; completedAt: Date | null }[]): CourseProgress {
   const progressByLesson = new Map(progressRows.map((progress) => [progress.lessonId, progress]));
   const completedLessons = lessons.filter((lesson) => lessonState(progressByLesson.get(lesson.id)) === 'COMPLETED').length;
   const hasStartedLesson = lessons.some((lesson) => lessonState(progressByLesson.get(lesson.id)) !== 'NOT_STARTED');

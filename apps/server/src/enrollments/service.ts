@@ -2,6 +2,7 @@ import { CourseStatus, EnrollmentProgressState, PrismaClient, Role } from '@pris
 import { isUniqueConstraintError } from '../auth/repository.js';
 import { isValidEmail, normalizeEmail } from '../auth/validation.js';
 import { prisma } from '../db/prisma.js';
+import { calculatedProgress } from '../learner/service.js';
 
 export type BulkEnrollmentStatus = 'ADDED' | 'ALREADY_ENROLLED' | 'LEARNER_NOT_FOUND' | 'NOT_A_LEARNER' | 'INVALID_EMAIL' | 'DUPLICATE_IN_FILE';
 export type BulkEnrollmentResult = { email: string; status: BulkEnrollmentStatus };
@@ -102,6 +103,25 @@ export function createInstructorEnrollmentService(client: PrismaClient = prisma)
         client.enrollment.count({ where })
       ]);
       return { enrollments: enrollments.map((enrollment) => safeEnrollment(enrollment, enrollment.learner)), total };
+    },
+
+    async progressExport(courseId: string, instructorId: string) {
+      const course = await ownedCourse(client, courseId, instructorId);
+      const [lessons, enrollments] = await Promise.all([
+        client.lesson.findMany({ where: { courseId }, select: { id: true } }),
+        client.enrollment.findMany({
+          where: { courseId },
+          select: {
+            learner: { select: { email: true } },
+            lessonProgress: { select: { lessonId: true, startedAt: true, completedAt: true } }
+          },
+          orderBy: [{ learner: { email: 'asc' } }, { id: 'asc' }]
+        })
+      ]);
+      return {
+        course: { id: course.id, status: course.status },
+        rows: enrollments.map((enrollment) => ({ email: enrollment.learner.email, progress: calculatedProgress(lessons, enrollment.lessonProgress) }))
+      };
     }
   };
 }

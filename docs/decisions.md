@@ -1,5 +1,17 @@
 # Decisions
 
+## 50. Server-side whole-course progress export
+
+- **Chose:** An owner-only CSV endpoint that uses the existing current-lesson derived-progress helper and exports all enrollments, regardless of normal list pagination or course lifecycle status.
+- **Rejected:** Browser-side CSV generation, a second progress algorithm, status-based historical export denial, or one progress query per learner.
+- **Why:** README requires the complete enrolled-learner progress export. Reusing the existing formula preserves delete/add/reorder semantics and bulk Prisma reads avoid N+1 query behavior.
+
+## 51. Stable safe CSV representation
+
+- **Chose:** `learner_email`, `progress_state`, `completed_lessons`, `total_lessons`, and `completion_percentage`, RFC-style quoting, and apostrophe protection for formula-leading values.
+- **Rejected:** Password or session fields, raw comma concatenation, title-based attachment filenames, and unescaped spreadsheet formulas.
+- **Why:** README gives no column names, so these are minimal useful values; the escaping keeps records structurally valid and reduces CSV-injection risk.
+
 ## 48. Role-specific shell, server-backed UI state
 
 - **Chose:** One minimal React shell selected from `/api/auth/me`, with instructor and learner navigation, typed API clients, and local component state.

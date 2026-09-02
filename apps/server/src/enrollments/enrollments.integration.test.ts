@@ -137,5 +137,51 @@ integrationDescribe('instructor enrollment API with PostgreSQL', () => {
     await instructorAAgent.get(`/api/courses/${courseA.id}/enrollments?limit=999`).expect(400);
     await instructorAAgent.post(`/api/courses/${courseA.id}/archive`).expect(200);
     await instructorAAgent.get(`/api/courses/${courseA.id}/enrollments`).expect(200);
+    await instructorAAgent.get(`/api/courses/${courseA.id}/enrollments/export.csv`).expect(200);
+  });
+
+  it('exports all owner-course learner progress as escaped, read-only CSV', async () => {
+    const course = await createCourse(instructorA.id, 'Export course');
+    const [first, second] = await Promise.all([
+      prisma.lesson.create({ data: { courseId: course.id, title: 'First', content: 'First content', position: 1 } }),
+      prisma.lesson.create({ data: { courseId: course.id, title: 'Second', content: 'Second content', position: 2 } })
+    ]);
+    const unusual = await prisma.user.create({ data: { email: '=formula,"learner"@test.local', passwordHash: await hashPassword(password), role: Role.LEARNER }, select: { id: true, email: true } });
+    createdUserIds.push(unusual.id);
+    await prisma.enrollment.createMany({ data: [
+      { courseId: course.id, learnerId: learnerA.id }, { courseId: course.id, learnerId: learnerB.id },
+      { courseId: course.id, learnerId: learnerC.id }, { courseId: course.id, learnerId: unusual.id }
+    ] });
+    const enrollments = await prisma.enrollment.findMany({ where: { courseId: course.id }, select: { id: true, learnerId: true } });
+    const enrollmentId = (learnerId: string) => enrollments.find((item) => item.learnerId === learnerId)!.id;
+    await prisma.lessonProgress.createMany({ data: [
+      { enrollmentId: enrollmentId(learnerB.id), lessonId: first.id, startedAt: new Date() },
+      { enrollmentId: enrollmentId(learnerC.id), lessonId: first.id, startedAt: new Date(), completedAt: new Date() },
+      { enrollmentId: enrollmentId(learnerC.id), lessonId: second.id, startedAt: new Date(), completedAt: new Date() }
+    ] });
+    const activityBefore = await prisma.courseActivity.count({ where: { courseId: course.id } });
+    const progressBefore = await prisma.lessonProgress.count({ where: { enrollment: { courseId: course.id } } });
+    await request(app).get(`/api/courses/${course.id}/enrollments/export.csv`).expect(401);
+    await learnerAAgent.get(`/api/courses/${course.id}/enrollments/export.csv`).expect(403);
+    await instructorBAgent.get(`/api/courses/${course.id}/enrollments/export.csv?instructorId=${instructorA.id}`).expect(403);
+    await instructorAAgent.get('/api/courses/missing/enrollments/export.csv').expect(404);
+    const response = await instructorAAgent.get(`/api/courses/${course.id}/enrollments/export.csv`).expect(200);
+    expect(response.headers['content-type']).toContain('text/csv');
+    expect(response.headers['content-disposition']).toBe(`attachment; filename="course-progress-${course.id}.csv"`);
+    expect(response.text).toContain('learner_email,progress_state,completed_lessons,total_lessons,completion_percentage');
+    expect(response.text).toContain(`${learnerA.email},NOT_STARTED,0,2,0`);
+    expect(response.text).toContain(`${learnerB.email},IN_PROGRESS,0,2,0`);
+    expect(response.text).toContain(`${learnerC.email},COMPLETED,2,2,100`);
+    expect(response.text).toContain(`"'=formula,""learner""@test.local"`);
+    expect(response.text).not.toContain('passwordHash');
+    expect(await prisma.courseActivity.count({ where: { courseId: course.id } })).toBe(activityBefore);
+    expect(await prisma.lessonProgress.count({ where: { enrollment: { courseId: course.id } } })).toBe(progressBefore);
+    await instructorAAgent.patch(`/api/courses/${course.id}/lessons/reorder`).send({ lessonIds: [second.id, first.id] }).expect(200);
+    expect((await instructorAAgent.get(`/api/courses/${course.id}/enrollments/export.csv`).expect(200)).text).toContain(`${learnerC.email},COMPLETED,2,2,100`);
+    await instructorAAgent.delete(`/api/courses/${course.id}/lessons/${second.id}`).expect(204);
+    expect((await instructorAAgent.get(`/api/courses/${course.id}/enrollments/export.csv`).expect(200)).text).toContain(`${learnerC.email},COMPLETED,1,1,100`);
+    const third = await instructorAAgent.post(`/api/courses/${course.id}/lessons`).send({ title: 'Third', content: 'Third content' }).expect(201);
+    expect((await instructorAAgent.get(`/api/courses/${course.id}/enrollments/export.csv`).expect(200)).text).toContain(`${learnerC.email},IN_PROGRESS,1,2,50`);
+    await instructorAAgent.get(`/api/courses/${draftA.id}/enrollments/export.csv`).expect(200).expect('Content-Type', /text\/csv/);
   });
 });

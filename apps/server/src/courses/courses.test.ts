@@ -68,7 +68,7 @@ describe('instructor course API', () => {
     await learner.get(`/api/courses/${course.id}`).expect(403);
   });
 
-  it('updates only an owner course and preserves status', async () => {
+  it('updates each lifecycle state in place without creating a new draft or changing protected fields', async () => {
     const { app, users, courses } = testContext();
     const owner = await instructorAgent(app, users, 'owner@example.com');
     const ownerId = (await owner.get('/api/auth/me')).body.user.id;
@@ -76,12 +76,13 @@ describe('instructor course API', () => {
     const published = courses.seed({ ...courseInput, title: 'Published course', instructorId: ownerId, status: CourseStatus.PUBLISHED });
     const archived = courses.seed({ ...courseInput, title: 'Archived course', instructorId: ownerId, status: CourseStatus.ARCHIVED });
 
-    const updatedDraft = await owner.patch(`/api/courses/${draft.id}`).send({ title: 'Updated draft' }).expect(200);
-    const updatedPublished = await owner.patch(`/api/courses/${published.id}`).send({ description: 'Updated description' }).expect(200);
-    const updatedArchived = await owner.patch(`/api/courses/${archived.id}`).send({ category: 'Updated category' }).expect(200);
-    expect(updatedDraft.body.course).toMatchObject({ title: 'Updated draft', status: CourseStatus.DRAFT });
-    expect(updatedPublished.body.course.status).toBe(CourseStatus.PUBLISHED);
-    expect(updatedArchived.body.course.status).toBe(CourseStatus.ARCHIVED);
+    const updatedDraft = await owner.patch(`/api/courses/${draft.id}`).send({ title: 'Updated draft', description: 'Draft update', category: 'Updated' }).expect(200);
+    const updatedPublished = await owner.patch(`/api/courses/${published.id}`).send({ title: 'Updated published', description: 'Published update', category: 'Updated' }).expect(200);
+    const updatedArchived = await owner.patch(`/api/courses/${archived.id}`).send({ title: 'Updated archived', description: 'Archived update', category: 'Updated' }).expect(200);
+    expect(updatedDraft.body.course).toMatchObject({ id: draft.id, instructorId: ownerId, title: 'Updated draft', description: 'Draft update', category: 'Updated', status: CourseStatus.DRAFT });
+    expect(updatedPublished.body.course).toMatchObject({ id: published.id, instructorId: ownerId, title: 'Updated published', description: 'Published update', category: 'Updated', status: CourseStatus.PUBLISHED });
+    expect(updatedArchived.body.course).toMatchObject({ id: archived.id, instructorId: ownerId, title: 'Updated archived', description: 'Archived update', category: 'Updated', status: CourseStatus.ARCHIVED });
+    expect(await courses.count({ instructorId: ownerId })).toBe(3);
     await owner.patch(`/api/courses/${draft.id}`).send({ status: CourseStatus.PUBLISHED }).expect(400);
     await owner.patch(`/api/courses/${draft.id}`).send({ instructorId: 'other-user' }).expect(400);
     await owner.patch(`/api/courses/${draft.id}`).send({ id: 'different-course' }).expect(400);

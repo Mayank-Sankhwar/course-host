@@ -1,5 +1,19 @@
 # AI prompts
 
+## Enrolled-learner progress CSV export
+
+### Prompt
+
+The user requested only the README-required instructor course progress CSV export: session-derived ownership authorization, existing progress semantics, server-side escaping, PostgreSQL integration coverage, relevant documentation, and no Git history operations.
+
+### What changed
+
+Added `GET /api/courses/:courseId/enrollments/export.csv`. It exports all owner-course enrollments with current derived progress, safe CSV quoting/formula handling, a deterministic attachment filename, and no persistence side effects. No schema or dependency changed.
+
+### Verification
+
+Type checking passed. The test file has isolated PostgreSQL coverage for authorization, headers, all progress states, recalculation after reorder/delete/add, status behavior, escaping, and read-only behavior. Final privileged test execution remains subject to the documented environment usage restriction; no unexecuted check is claimed as passed.
+
 ## Instructor dashboard and application UI integration
 
 ### Prompt

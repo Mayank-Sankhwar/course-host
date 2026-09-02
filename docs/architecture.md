@@ -1,5 +1,11 @@
 # Architecture
 
+## Enrolled-learner progress export (confirmed)
+
+`GET /api/courses/:courseId/enrollments/export.csv` is an instructor-only, session-owner-scoped download. It reads all course enrollments (not the paginated learner-list subset), current lesson IDs, and their progress facts, then reuses the learner progress calculation before generating `text/csv` on the server. It is read-only: no progress, course activity, enrollment, alert, or activity-log write occurs.
+
+The CSV columns are `learner_email`, `progress_state`, `completed_lessons`, `total_lessons`, and `completion_percentage`. RFC-style quoting doubles embedded quotes and quotes commas/newlines; an apostrophe prefixes formula-leading cell values (`=`, `+`, `-`, `@`) to protect spreadsheet consumers. The deterministic, identifier-only attachment name is `course-progress-{courseId}.csv`, avoiding title-derived filename handling. Owner exports remain available for DRAFT, PUBLISHED, and ARCHIVED courses because README preserves their historical enrollment records and does not restrict export status.
+
 ## Role-specific application integration (confirmed)
 
 `GET /api/auth/me` establishes the UI session, then the React shell renders role-appropriate navigation. Instructors use Dashboard, Courses, and Activity/Alerts; learners use Catalogue and My Courses. The frontend only chooses what to display—the session-backed API continues to enforce roles, ownership, enrollment, visibility, progress, and lifecycle rules.

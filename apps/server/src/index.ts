@@ -1,5 +1,5 @@
 import 'dotenv/config';
-console.log('DATABASE_URL:', process.env.DATABASE_URL);
+//console.log('DATABASE_URL:', process.env.DATABASE_URL);
 import { createApp } from './app.js';
 
 const port = Number(process.env.PORT ?? 3001);
