@@ -1,5 +1,5 @@
 import 'dotenv/config';
-//console.log('DATABASE_URL:', process.env.DATABASE_URL);
+console.log('DATABASE_URL:', process.env.DATABASE_URL);
 import { createApp } from './app.js';
 
 const port = Number(process.env.PORT ?? 3001);
@@ -14,7 +14,7 @@ if (process.env.NODE_ENV === 'production' && !clientOrigin) {
 }
 
 const app = createApp({
-  clientOrigin: clientOrigin ?? 'http://localhost:5174',
+  clientOrigin: clientOrigin ?? 'http://localhost:5173',
   isProduction: process.env.NODE_ENV === 'production',
   sessionSecret
 });

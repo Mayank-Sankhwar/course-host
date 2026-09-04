@@ -12,7 +12,8 @@
     "typecheck": "npm run typecheck --workspace=@busy/client && npm run typecheck --workspace=@busy/server",
     "test": "npm run test --workspaces --if-present",
     "prisma:validate": "prisma validate",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "prisma:seed": "prisma db seed"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

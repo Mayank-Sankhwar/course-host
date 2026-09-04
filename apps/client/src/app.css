@@ -122,6 +122,10 @@ tbody tr:last-child td { border-bottom: 0; }
 .auth-card form { display: grid; align-items: stretch; }
 .auth-card label { min-width: 0; }
 .auth-card button { width: 100%; }
+.password-field { position: relative; display: block; }
+.password-field input { padding-right: 2.75rem; }
+.password-toggle { position: absolute; top: 50%; right: .35rem; width: 2rem !important; min-height: 2rem; padding: 0; transform: translateY(-50%); border: 0; background: transparent; color: var(--muted); font-size: 1.15rem; line-height: 1; }
+.password-toggle:hover, .password-toggle:focus-visible { background: transparent; color: var(--primary); }
 .auth-switch { width: auto !important; margin-top: var(--space-2); border: 0; color: var(--primary); background: transparent; }
 .auth-switch:hover:not(:disabled) { color: var(--primary-hover); background: transparent; text-decoration: underline; }
 

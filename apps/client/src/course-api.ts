@@ -10,6 +10,16 @@ export type Course = {
 };
 
 type CourseList = { courses: Course[]; page: number; limit: number; total: number; totalPages: number };
+export type CourseListQuery = {
+  search: string;
+  category: string;
+  status: Course['status'] | '';
+  instructorId: string;
+  sort: 'title' | 'createdAt' | 'enrollmentCount';
+  direction: 'asc' | 'desc';
+  page: number;
+  limit: number;
+};
 export type InstructorEnrollment = { id: string; courseId: string; enrolledAt: string; progressState: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; learner: { id: string; email: string } };
 export type BulkEnrollmentResult = { email: string; status: 'ADDED' | 'ALREADY_ENROLLED' | 'LEARNER_NOT_FOUND' | 'NOT_A_LEARNER' | 'INVALID_EMAIL' | 'DUPLICATE_IN_FILE' };
 export type LearnerActivity = { enrollment: { id: string; enrolledAt: string; progressState: InstructorEnrollment['progressState'] }; learner: { id: string; email: string }; lastProgressAt: string | null; state: 'NOT_STARTED' | 'ACTIVE' | 'INACTIVE' };
@@ -61,7 +71,14 @@ async function downloadCsv(courseId: string): Promise<{ blob: Blob; filename: st
 }
 
 export const courseApi = {
-  list: () => request<CourseList>('/api/courses?sort=createdAt&direction=desc'),
+  list: (query: CourseListQuery) => {
+    const params = new URLSearchParams({ sort: query.sort, direction: query.direction, page: String(query.page), limit: String(query.limit) });
+    if (query.search.trim()) params.set('search', query.search.trim());
+    if (query.category.trim()) params.set('category', query.category.trim());
+    if (query.status) params.set('status', query.status);
+    if (query.instructorId.trim()) params.set('instructorId', query.instructorId.trim());
+    return request<CourseList>(`/api/courses?${params.toString()}`);
+  },
   create: (input: Pick<Course, 'title' | 'description' | 'category'>) => request<{ course: Course }>('/api/courses', {
     method: 'POST', body: JSON.stringify(input)
   }),
