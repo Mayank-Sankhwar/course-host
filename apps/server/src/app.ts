@@ -28,6 +28,10 @@ export function createApp(options: AppOptions) {
   const users = options.userRepository ?? authUserRepository;
   const courses = options.courseRepository ?? courseRepository;
 
+  if (options.isProduction) {
+  app.set('trust proxy', 1);
+}
+
   app.use(cors({ origin: options.clientOrigin, credentials: true }));
   app.use(express.json());
   app.use(session({

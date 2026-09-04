@@ -18,6 +18,17 @@ their own pace, and progress is tracked automatically rather than self-reported.
 be able to see, at a glance, who has finished, who is partway through, and who has gone quiet. Build
 the tool that replaces the spreadsheet.
 
+## Current implementation
+
+The application currently provides authenticated instructor and learner workflows. Instructors can
+create, edit, publish, archive, and restore courses; manage ordered lessons; enroll learners
+individually or by pasted emails/CSV; view enrollment progress; review comments and activity; export
+progress as CSV; and use dashboard metrics and inactivity alerts. Learners can browse the
+server-filtered published catalogue, enroll in courses, view their own courses and lesson content,
+comment where allowed, and record progress through the enforced `NOT_STARTED → IN_PROGRESS →
+COMPLETED` flow. Authentication, role checks, ownership, enrollment access, and progress rules are
+enforced by the server.
+
 ## What it must do
 
 Everything below is required. Several of the ten spell out exact rules — what happens on an illegal

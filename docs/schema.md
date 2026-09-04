@@ -30,7 +30,7 @@ This is the authoritative PostgreSQL/Prisma design. `prisma/schema.prisma` is fo
 | `LessonProgress` | Facts for one enrollment and one lesson: `startedAt`, `completedAt`, `updatedAt`; it has no status column. | Cascades only when its lesson or enrollment is deleted. `@@unique([enrollmentId, lessonId])` prevents duplicate records. |
 | `Comment` | Course-level `content`, author, and timestamps. | One course, one user. There is intentionally no lesson-comment foreign key. |
 | `ActivityLog` | Immutable-history record: course, optional actor, constrained type, optional JSON `details`, creation time. | Course deletion is restricted; actor deletion sets only `actorId` to null, preserving the event. |
-| `AlertDismissal` | The current dismissal checkpoint for a learner/course inactivity alert: course, learner, `dismissedAt`. | `@@unique([courseId, learnerId])` gives one current record; eligibility will be computed later rather than persisting alert instances. |
+| `AlertDismissal` | The current dismissal checkpoint for a learner/course inactivity alert: course, learner, `dismissedAt`. | `@@unique([courseId, learnerId])` gives one current record; alert eligibility is computed from `CourseActivity` rather than persisting alert instances. |
 
 ## Indexes and foreign-key behavior
 
@@ -40,13 +40,13 @@ All course/user historical relationships use `onDelete: Restrict`, except `Activ
 
 The unique lesson-position key requires a reorder service to use a transaction and temporary non-conflicting positions before final positions are assigned. This keeps database ordering unambiguous without changing lesson IDs.
 
-## Database rules versus future service rules
+## Database rules versus service rules
 
-The database enforces foreign keys, enum values, unique email/enrollment/progress/position values, and scoped deletion behavior. The service/API layer enforces email normalization, password hashing, roles, ownership, explicit course lifecycle transitions, learner self-enrollment into published courses, enrollment-scoped progress access, monotonic lesson timestamps, course-progress derivation, and course-comment eligibility. Activity immutability, instructor-controlled enrollment, and alerts remain pending.
+The database enforces foreign keys, enum values, unique email/enrollment/progress/position values, and scoped deletion behavior. The service/API layer enforces email normalization, password hashing, roles, ownership, explicit course lifecycle transitions, learner self-enrollment into published courses, enrollment-scoped progress access, monotonic lesson timestamps, the `NOT_STARTED → IN_PROGRESS → COMPLETED` lesson-progress rule, course-progress derivation, course-comment eligibility, instructor-controlled enrollment, activity immutability, and inactivity-alert eligibility.
 
 `LessonProgress` state is timestamp-derived: no row means not started; a started-but-uncompleted row is in progress; a completed timestamp means completed. Course percentage and state are calculated from the current lessons plus their progress, so no completed count, total count, or percentage is persisted. This handles additions/deletions/reordering correctly.
 
-There is no `CourseVisit`, persistent `Alert`, course-material, or lesson-discussion table. Visits do not equal learner progress; alert eligibility will be queried from progress timestamps and compared with `AlertDismissal.dismissedAt`.
+There is no `CourseVisit`, persistent `Alert`, course-material, or lesson-discussion table. Visits do not equal learner progress; alert eligibility is queried from `CourseActivity.lastProgressAt` and compared with the persisted `AlertDismissal` checkpoint.
 
 ## Course CRUD phase note
 

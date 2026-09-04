@@ -30,7 +30,7 @@ README defines inactivity as no further **progress** for more than fourteen days
 
 ## Confirmed
 
-The project is an npm-workspaces TypeScript monorepo: React/Vite in `apps/client`, Express in `apps/server`, and Prisma/PostgreSQL schema in `prisma`. The server provides health, authentication, instructor course management, instructor lesson management, and explicit instructor course-lifecycle routes. The client is a deliberately small instructor management interface.
+The project is an npm-workspaces TypeScript monorepo: React/Vite in `apps/client`, Express in `apps/server`, and Prisma/PostgreSQL schema in `prisma`. The server provides health, authentication, instructor course and lesson management, course lifecycle, enrollment/progress, catalogue, comments, activity/alerts, dashboard, and progress-export routes. The client is a deliberately small role-specific instructor and learner interface.
 
 The database boundary is now designed as:
 
@@ -39,7 +39,7 @@ Frontend
   ↓
 Backend/API
   ↓
-Service and business-rule layer (planned)
+Service and business-rule layer
   ↓
 Prisma
   ↓
@@ -61,7 +61,7 @@ requireAuth loads server-side user identity
   ↓
 requireRole verifies stored role
   ↓
-Future ownership/enrollment business authorization
+Ownership/enrollment business authorization
   ↓
 Prisma / PostgreSQL
 ```
@@ -155,7 +155,7 @@ Prisma → PostgreSQL
 
 `POST /api/courses/:courseId/enroll` creates a learner's own enrollment only if the course is currently `PUBLISHED`. `GET /api/me/courses` reads only the authenticated learner's enrollments; a query parameter never supplies learner identity. Learner lesson/progress routes require both that enrollment and a currently published course. Archive blocks learner lesson/progress access but preserves the enrollment and all progress records; restored courses resume with those records intact.
 
-Lesson progress has no client-provided state or timestamp input. Start creates a `(enrollmentId, lessonId)` record only when absent; complete creates both timestamps when absent or adds `completedAt` to an in-progress record. Reopening a completed lesson leaves it completed. The service calculates course state and percentage from the current lesson IDs, so reorder does not change progress, deletion removes only its cascaded progress, and a newly added lesson is naturally `NOT_STARTED`.
+Lesson progress has no client-provided state or timestamp input. Start creates a `(enrollmentId, lessonId)` record only when absent; completion is rejected unless the enrollment is already `IN_PROGRESS`, and otherwise adds `completedAt` to an in-progress record. Reopening a completed lesson leaves it completed. The service calculates course state and percentage from the current lesson IDs, so reorder does not change progress, deletion removes only its cascaded progress, and a newly added lesson is naturally `NOT_STARTED`.
 
 Instructor-managed enrollment follows the same server-owned identity boundary:
 
@@ -171,7 +171,7 @@ normalized learner email → user/role lookup → Enrollment create
 PostgreSQL unique (learnerId, courseId)
 ```
 
-`POST /api/courses/:courseId/enrollments` accepts only `{ email }`. `POST /api/courses/:courseId/enrollments/bulk` accepts a multipart CSV with one `email` column (header optional), up to 1,000 nonblank rows and 256 KiB. CSV rows are parsed as untrusted text, normalized with the same trim/lowercase rule as authentication, and processed independently so an invalid, missing, duplicate, or instructor row does not roll back valid rows. Each row receives `ADDED`, `ALREADY_ENROLLED`, `LEARNER_NOT_FOUND`, `NOT_A_LEARNER`, `INVALID_EMAIL`, or `DUPLICATE_IN_FILE`; first CSV occurrence is authoritative and later duplicates get `DUPLICATE_IN_FILE`.
+`POST /api/courses/:courseId/enrollments` accepts only `{ email }`. The instructor UI accepts either pasted emails or a CSV file, normalizes pasted/uploaded text by trimming, lowercasing, splitting common delimiters, ignoring blanks, and deduplicating before sending it through the same multipart bulk endpoint. The endpoint accepts a multipart CSV with one `email` column (header optional), up to 1,000 nonblank rows and 256 KiB. CSV rows are parsed as untrusted text, normalized with the same trim/lowercase rule as authentication, and processed independently so an invalid, missing, duplicate, or instructor row does not roll back valid rows. Each row receives `ADDED`, `ALREADY_ENROLLED`, `LEARNER_NOT_FOUND`, `NOT_A_LEARNER`, `INVALID_EMAIL`, or `DUPLICATE_IN_FILE`; first CSV occurrence is authoritative and later duplicates get `DUPLICATE_IN_FILE`.
 
 `GET /api/courses/:courseId/enrollments` is owner-only, paginated, and returns safe learner ID/email plus enrollment data. It is intentionally available for archived owned courses to inspect preserved historical enrollment; creating individual or bulk enrollments is limited to published courses, matching the README’s active-course enrollment rule. New enrollment creates no `LessonProgress` rows.
 
@@ -191,8 +191,10 @@ Prisma Comment(courseId, authorId) → PostgreSQL
 
 Comments are never lesson-specific. Their author comes exclusively from the authenticated session; the API returns only safe author identity, comment body, and timestamp. Comments are ordered `createdAt ASC, id ASC`. Owners can review existing archived discussion, but archived courses reject all new comments; learner discussion access follows the same archived restriction as lessons. Restore makes valid learner discussion available again without recreating comments.
 
-## Planned
+## Remaining operational work
 
-Future API/service code will use the established server-side identity for ownership and enrollment checks; frontend-submitted roles or IDs will never authorize an action. The service layer will derive and update enrollment progress from lesson progress and enforce activity immutability. The current `express-session` MemoryStore is intentionally development-only and must be replaced with persistent session storage before horizontally scaled production deployment.
-
-Activity behavior, alerts, CSV processing, analytics, and notifications remain planned.
+The current `express-session` MemoryStore is intentionally development-only and must be replaced
+with persistent session storage before horizontally scaled production deployment. Deployment and
+production hosting are not part of the verified local implementation. Optional stretch features such
+as quizzes, certificates, prerequisites, video tracking, ratings, learning paths, downloadable
+resources, and email digests remain out of scope.

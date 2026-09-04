@@ -255,3 +255,28 @@ The continuation brief described lesson visits, pings, and optional notification
 ### Verification
 
 The migration was applied to local PostgreSQL; Prisma client generation and type checking passed. The first full test run executed all 40 tests successfully but cleanup exposed a missing comment deletion before course cleanup. That cleanup was fixed; the final privileged rerun was then blocked before starting by the Codex environment account usage limit, so it is not claimed as passed. No Git history operation was performed.
+
+## Progress-state transition correction
+
+### Prompt
+
+The user requested a review and fix of learner lesson progress so completion could not move an
+enrollment directly from `NOT_STARTED` to `COMPLETED`, including a one-lesson course regression
+test, while preserving authentication and ownership behavior.
+
+### AI suggestion and what was incomplete
+
+The first implementation correctly identified the service branch that created a lesson-progress
+row with both timestamps when no row existed, but it left an existing integration test completing a
+lesson immediately after enrollment. That test encoded the old behavior and failed with HTTP 409
+after the server guard was added. The learner UI also still rendered separate Start and Complete
+actions without making the state progression explicit.
+
+### Correction and outcome
+
+The service now rejects `complete` when the enrollment is `NOT_STARTED`, using the existing 409
+error convention. The regression test starts the lesson before completing it, and a dedicated
+one-lesson test verifies `NOT_STARTED → IN_PROGRESS → COMPLETED` plus rejection of the direct
+completion request. The learner UI now exposes Start for `NOT_STARTED`, Complete for
+`IN_PROGRESS`, and Completed for finished lessons. The resulting server suite passed with 42 tests,
+and repository typecheck and build also passed.
