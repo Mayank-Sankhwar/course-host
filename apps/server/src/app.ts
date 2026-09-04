@@ -41,7 +41,7 @@ export function createApp(options: AppOptions) {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: options.isProduction ? 'none' : 'lax',
       secure: options.isProduction,
       maxAge: 1000 * 60 * 60 * 24 * 7
     }
