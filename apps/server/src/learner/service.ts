@@ -5,7 +5,7 @@ import type { CourseListQuery } from '../courses/types.js';
 const maxTransactionAttempts = 3;
 
 export class LearnerAccessError extends Error {
-  constructor(readonly kind: 'COURSE_NOT_FOUND' | 'COURSE_NOT_PUBLISHED' | 'COURSE_ARCHIVED' | 'NOT_ENROLLED' | 'LESSON_NOT_FOUND' | 'ALREADY_ENROLLED') {
+  constructor(readonly kind: 'COURSE_NOT_FOUND' | 'COURSE_NOT_PUBLISHED' | 'COURSE_ARCHIVED' | 'NOT_ENROLLED' | 'LESSON_NOT_FOUND' | 'ALREADY_ENROLLED' | 'INVALID_PROGRESS_TRANSITION') {
     super(kind);
   }
 }
@@ -157,6 +157,9 @@ export function createLearnerService(client: PrismaClient = prisma) {
       const lesson = await tx.lesson.findFirst({ where: { id: lessonId, courseId }, select: { id: true } });
       if (!lesson) throw new LearnerAccessError('LESSON_NOT_FOUND');
       const existing = await tx.lessonProgress.findUnique({ where: { enrollmentId_lessonId: { enrollmentId: enrollment.id, lessonId } } });
+      if (action === 'complete' && enrollment.progressState === EnrollmentProgressState.NOT_STARTED) {
+        throw new LearnerAccessError('INVALID_PROGRESS_TRANSITION');
+      }
       let lessonProgress;
       let madeProgress = false;
       if (!existing) {

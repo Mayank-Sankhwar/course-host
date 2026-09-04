@@ -15,6 +15,7 @@ function errorResponse(error: LearnerAccessError, response: Response) {
   if (error.kind === 'COURSE_NOT_PUBLISHED') return response.status(403).json({ error: 'This course is not currently available to learners.' });
   if (error.kind === 'NOT_ENROLLED') return response.status(403).json({ error: 'You do not have permission to perform this action.' });
   if (error.kind === 'LESSON_NOT_FOUND') return response.status(404).json({ error: 'Lesson not found.' });
+  if (error.kind === 'INVALID_PROGRESS_TRANSITION') return response.status(409).json({ error: 'Start a lesson before completing it.' });
   return response.status(409).json({ error: 'You are already enrolled in this course.' });
 }
 

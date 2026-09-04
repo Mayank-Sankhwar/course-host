@@ -128,6 +128,10 @@ integrationDescribe('learner enrollment and progress API with PostgreSQL', () =>
     let progress = await learnerAAgent.get(`/api/my-courses/${course.id}/progress`).expect(200);
     expect(progress.body.courseProgress).toMatchObject({ state: 'NOT_STARTED', completedLessons: 0, totalLessons: 2, completionPercentage: 0 });
     expect(progress.body.lessons.map((lesson: { progressState: string }) => lesson.progressState)).toEqual(['NOT_STARTED', 'NOT_STARTED']);
+    await learnerAAgent.post(`/api/my-courses/${course.id}/lessons/${one.id}/complete`).send({}).expect(409).expect(({ body }) => {
+      expect(body.error).toBe('Start a lesson before completing it.');
+    });
+    expect(await prisma.lessonProgress.count({ where: { enrollment: { courseId: course.id } } })).toBe(0);
     await learnerAAgent.post(`/api/my-courses/${course.id}/lessons/${one.id}/start`).send({ startedAt: '2000-01-01', state: 'COMPLETED' }).expect(400);
     await learnerAAgent.post(`/api/my-courses/${course.id}/lessons/${one.id}/start`).send({}).expect(200);
     progress = await learnerAAgent.get(`/api/my-courses/${course.id}/progress`).expect(200);
@@ -149,10 +153,26 @@ integrationDescribe('learner enrollment and progress API with PostgreSQL', () =>
     expect(progress.body.courseProgress).toMatchObject({ state: 'COMPLETED', completedLessons: 2, totalLessons: 2, completionPercentage: 100 });
   });
 
+  it('requires starting the only lesson before completing a one-lesson course', async () => {
+    const course = await createCourse('One lesson transition');
+    const lesson = await createLesson(course.id, 'Only lesson', 1);
+    await enroll(course.id);
+
+    await learnerAAgent.post(`/api/my-courses/${course.id}/lessons/${lesson.id}/complete`).send({}).expect(409).expect(({ body }) => {
+      expect(body.error).toBe('Start a lesson before completing it.');
+    });
+    expect((await prisma.enrollment.findUniqueOrThrow({ where: { learnerId_courseId: { learnerId: learnerA.id, courseId: course.id } } })).progressState).toBe(EnrollmentProgressState.NOT_STARTED);
+    await learnerAAgent.post(`/api/my-courses/${course.id}/lessons/${lesson.id}/start`).send({}).expect(200);
+    expect((await prisma.enrollment.findUniqueOrThrow({ where: { learnerId_courseId: { learnerId: learnerA.id, courseId: course.id } } })).progressState).toBe(EnrollmentProgressState.IN_PROGRESS);
+    await learnerAAgent.post(`/api/my-courses/${course.id}/lessons/${lesson.id}/complete`).send({}).expect(200);
+    expect((await prisma.enrollment.findUniqueOrThrow({ where: { learnerId_courseId: { learnerId: learnerA.id, courseId: course.id } } })).progressState).toBe(EnrollmentProgressState.COMPLETED);
+  });
+
   it('preserves progress by stable lesson ID across reorder, deletion, addition, archive, and restore', async () => {
     const course = await createCourse('Current lesson set');
     const [a, b, c] = await Promise.all([createLesson(course.id, 'A', 1), createLesson(course.id, 'B', 2), createLesson(course.id, 'C', 3)]);
     await enroll(course.id);
+    await learnerAAgent.post(`/api/my-courses/${course.id}/lessons/${a.id}/start`).send({}).expect(200);
     await learnerAAgent.post(`/api/my-courses/${course.id}/lessons/${a.id}/complete`).send({}).expect(200);
     await learnerAAgent.post(`/api/my-courses/${course.id}/lessons/${b.id}/start`).send({}).expect(200);
     await instructorAgent.patch(`/api/courses/${course.id}/lessons/reorder`).send({ lessonIds: [c.id, a.id, b.id] }).expect(200);
