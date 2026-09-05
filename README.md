@@ -1,212 +1,250 @@
-# Assignment 05 — Course Delivery & Enrollment
-
-## The scenario
-
-Picture a company running internal training — onboarding material, compliance courses, skills
-workshops — built by a couple of instructors and worked through by everyone else at their own pace.
-Right now a course is a folder of slide decks and PDFs emailed around, and whether anyone actually
-finished it is tracked, if at all, in a spreadsheet someone updates when they remember.
-
-The result is predictable. A course goes out to the whole company before anyone notices it is just a
-title page with nothing behind it. A learner starts a course, gets busy, and quietly stops halfway
-through, and nobody notices until someone asks why their certificate never arrived. Nobody can say
-with any confidence how many people have actually finished the mandatory compliance course versus
-merely opened it once.
-
-They want one system where instructors build and publish courses, learners work through them at
-their own pace, and progress is tracked automatically rather than self-reported. Instructors should
-be able to see, at a glance, who has finished, who is partway through, and who has gone quiet. Build
-the tool that replaces the spreadsheet.
-
-## Current implementation
-
-The application currently provides authenticated instructor and learner workflows. Instructors can
-create, edit, publish, archive, and restore courses; manage ordered lessons; enroll learners
-individually or by pasted emails/CSV; view enrollment progress; review comments and activity; export
-progress as CSV; and use dashboard metrics and inactivity alerts. Learners can browse the
-server-filtered published catalogue, enroll in courses, view their own courses and lesson content,
-comment where allowed, and record progress through the enforced `NOT_STARTED → IN_PROGRESS →
-COMPLETED` flow. Authentication, role checks, ownership, enrollment access, and progress rules are
-enforced by the server.
+# CourseHost
+
+CourseHost is a role-based course delivery platform for instructors to create and manage courses and
+for learners to discover courses, enroll, complete lessons, and track progress.
+
+## Overview
+
+CourseHost supports two server-authorized roles. Instructors manage courses and ordered lessons,
+control publishing and archiving, enroll learners, monitor activity and progress, and use dashboard,
+alert, discussion, and CSV workflows. Learners browse published courses, enroll, access lesson
+content, participate in course discussions, and record progress through each course.
+
+The application is built around a relational source of truth: lesson progress is recorded as
+server-timestamped facts, while course progress and reporting values are derived from current data.
+
+## Key Features
+
+### Authentication and authorization
+
+- Learner and instructor roles.
+- Argon2id password hashing.
+- HTTP-only `express-session` cookies.
+- Server-side role, ownership, and enrollment checks.
+- Public signup creates learner accounts only.
+
+### Instructor workflows
+
+- Create, update, list, publish, archive, and restore courses.
+- Create, edit, delete, and reorder lessons.
+- Enroll registered learners individually or in bulk.
+- Paste learner emails or upload a bounded CSV with per-row results.
+- View learner enrollment and progress information.
+- Review immutable activity history and course comments.
+- Monitor inactivity alerts and dashboard metrics.
+- Export complete course progress as CSV.
+
+### Learner workflows
+
+- Browse the published course catalogue.
+- Search, filter, sort, and paginate server-side course results.
+- Enroll in published courses and view enrolled courses.
+- Read ordered lesson content.
+- Start and complete lessons using the enforced `NOT_STARTED -> IN_PROGRESS -> COMPLETED` flow.
+- View derived course progress and participate in permitted course discussions.
+
+## Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React, TypeScript, Vite |
+| Backend | Node.js, Express, TypeScript |
+| Database | PostgreSQL |
+| ORM and persistence | Prisma |
+| Authentication | Argon2id, `express-session` |
+| Testing | Vitest, Supertest, PostgreSQL integration tests |
+| Deployment | Render |
+
+## Architecture
+
+```text
+Browser
+  |
+  | HTTPS and credentialed API requests
+  v
+Render frontend: React/Vite client
+  |
+  | API requests
+  v
+Render backend: Express/TypeScript API
+  |
+  +--> express-session process-local session state
+  |
+  v
+Service and business rules
+  |
+  v
+Prisma
+  |
+  v
+PostgreSQL
+```
+
+The UI handles presentation and interaction. Routes handle transport and request validation; service
+code owns business rules and authorization; Prisma owns persistence access; and PostgreSQL enforces
+foreign keys and core uniqueness. The frontend never connects directly to PostgreSQL and does not
+determine authorization.
+
+The deployed frontend is [https://course-host-frontend.onrender.com/](https://course-host-frontend.onrender.com/).
+The backend is deployed separately at `https://course-host-d87j.onrender.com`. Because the origins
+are separate, the backend allows the configured `CLIENT_ORIGIN` with credentials and authentication
+uses an HTTP-only session cookie. The first Render request may take approximately 50 seconds while a
+service wakes from inactivity; allow the initial request to complete. The browser must permit the
+required cross-site cookie behavior for login and session persistence.
+
+See [docs/architecture.md](docs/architecture.md) for the complete request path and system-boundary
+description.
+
+## Core Data Model
+
+The schema contains `User`, `Course`, `Lesson`, `Enrollment`, `LessonProgress`, `Comment`,
+`ActivityLog`, `CourseActivity`, and `AlertDismissal`. A learner-course relationship is represented
+by the explicit `Enrollment` model, and lesson progress is represented by timestamp facts associated
+with an enrollment and lesson. Course progress is derived from current lessons and those facts rather
+than maintained as a manually updated percentage.
 
-## What it must do
+See [docs/schema.md](docs/schema.md) for every field, relationship, constraint, deletion rule, index,
+and scaling consideration.
 
-Everything below is required. Several of the ten spell out exact rules — what happens on an illegal
-move, what a bulk action must report back, when a dismissed alert is allowed to reappear — and those
-specifics are the actual ask, not just the bold headline in front of them.
+## Authentication and Authorization
 
-1. **Accounts and roles.** People sign in with an email and password, and there are at least two
-roles — an instructor role and a learner role. Instructors can create, edit, publish and archive
-courses, manage lessons, and enrol learners. Learners can enrol themselves in a published course,
-see the courses they are enrolled in, and track their own progress — they cannot edit course
-content, enrol other learners, or see other learners' progress. The difference must be enforced on
-the server, not just hidden in the interface.
+1. The user submits credentials to the API.
+2. The server verifies the password with Argon2id.
+3. The server establishes a signed session containing server-side identity.
+4. The browser stores the HTTP-only session cookie.
+5. Protected requests resolve the current user from the server-side session/repository.
+6. Role, course ownership, enrollment, and course-visibility checks determine access.
 
-2. **Courses.** Instructors create courses with a title, a description and a category, and can edit
-them later. Courses can be archived and restored. Archiving removes a course from the catalogue
-without deleting its lessons or any learner's enrollment history.
+The browser does not supply trusted roles, ownership, or learner identity. The cookie carries a
+session identifier rather than application authorization data.
 
-3. **Lessons inside courses.** Every lesson belongs to exactly one course and carries a title, its
-content or a description, and a position in the course's running order. Lessons can be added,
-edited, reordered and removed by the instructor. Opening a course shows its lessons in order.
+## Demo Accounts
 
-4. **Course and progress states.** A course moves *Draft → Published → Archived*. Publishing is
-blocked unless the course already has at least one lesson — the server rejects an attempt to publish
-an empty course, with a message explaining why. Once a learner is enrolled, their own progress
-through that course moves *Not Started → In Progress → Completed* as they work through its lessons,
-tracked separately for every learner on every course. Any other move in either sequence is rejected
-by the server.
+The seeded demo environment contains **10 instructors and 100 learners**.
 
-5. **Enrollment.** Instructors enrol learners into a published course, or learners can enrol
-themselves, and either way a learner can be enrolled in any number of courses while a course can
-have any number of learners. Every learner can see one list of every course they are enrolled in,
-alongside their progress in each.
+### Instructor accounts
 
-6. **Finding courses.** One list shows every course the viewer can see — published courses for
-learners, every course including drafts and archives for instructors — with a text search over
-titles and descriptions, filters for category, status and instructor, sorting by title, creation
-date or enrollment count, and pagination showing the total number of matches. All of this must
-happen on the server — do not load every course into the browser and filter there.
+All seeded instructor accounts use:
 
-7. **Bulk enrollment.** An instructor can bulk-enrol learners into a course by pasting or uploading
-a list of email addresses. The result must report, per address, whether it matched an unknown
-address, an already-enrolled learner, or was newly enrolled. Separately, export the progress of
-every learner enrolled in a course as a CSV file.
+**Password:** `12345678i`
 
-8. **A dashboard.** A landing view shows headline numbers — total learners, published courses,
-completions this month, learners currently in progress. It also breaks enrollments down by course
-and by progress state, and charts completions over the last eight weeks.
+| Email                   |
+| ----------------------- |
+| `instructora@gmail.com` |
+| `instructorb@gmail.com` |
+| `instructorc@gmail.com` |
+| `instructord@gmail.com` |
+| `instructore@gmail.com` |
+| `instructorf@gmail.com` |
+| `instructorg@gmail.com` |
+| `instructorh@gmail.com` |
+| `instructori@gmail.com` |
+| `instructorj@gmail.com` |
 
-9. **History you cannot rewrite.** Every course has an activity log recording when it was created,
-every edit, every publish or archive transition and who made it, and any comments learners or the
-instructor leave. Nothing in this log can be edited or deleted after the fact, including by the
-instructor.
+### Learner accounts
 
-10. **Inactivity alerts.** Any learner whose progress on a course is In Progress but who has made no
-further progress for more than fourteen days appears in an alerts area for the instructor, with a
-count badge visible in the navigation. An instructor can dismiss an alert for a specific learner and
-course. If that learner then engages again and later goes quiet for the same length of time, the
-alert reappears.
+The first 6 seeded learner accounts are provided below.
 
-## Stretch ideas (optional)
+**Password:** `12345678l`
 
-None of these are required, and none substitute for a goal above. If you finish all ten with time
-left over, pick whichever of these sounds most useful and build it:
+|  # | Email                |
+| -: | -------------------- |
+|  1 | `learnera@gmail.com` |
+|  2 | `learnerb@gmail.com` |
+|  3 | `learnerc@gmail.com` |
+|  4 | `learnerd@gmail.com` |
+|  5 | `learnere@gmail.com` |
+|  6 | `learnerf@gmail.com` |
 
-- Quizzes with automatic scoring.
-- Certificates on completion.
-- Discussion threads per lesson.
-- Prerequisite courses that gate enrollment.
-- Video lessons with watch-progress tracking.
-- Course ratings and reviews.
-- Learning paths bundling several courses.
-- Downloadable resources per lesson.
-- An email digest of inactive learners.
+The seed contains **100 learner accounts in total**. The remaining accounts continue the same deterministic lowercase naming pattern (`learneru@gmail.com`, `learnerv@gmail.com`, ..., followed by `learneraa@gmail.com`, `learnerab@gmail.com`, and so on till `learnerch@gmail.com`).
 
 
----
+## Local Development
 
-## What we are assessing
+### Prerequisites
 
-A working application is table stakes. Almost every serious candidate will produce something that runs, has a login, and roughly does what was asked. That's the floor, not the differentiator.
+- Node.js and npm.
+- A configured PostgreSQL database.
 
-What actually separates submissions is the record of thinking behind the app: the decisions you made and why, the trade-offs you weighed, what you built first and what you deliberately left out, and whether you can explain any part of your own system when asked. We are hiring for judgement. The app is the evidence for that judgement, not the deliverable in itself.
+### Setup
 
-We also read the code itself for structure and readability, which counts for a small share of the overall score.
+Clone the repository and install dependencies:
 
-## Time budget
+```bash
+git clone https://github.com/Mayank-Sankhwar/course-host.git
+cd course-host
+npm install
+```
 
-Budget about 12 hours total, spent roughly 2 hours a day across a week.
+Create `.env` from `.env.example` and configure `DATABASE_URL`, `SESSION_SECRET` with at least 32
+characters, and `CLIENT_ORIGIN`. Apply migrations, generate Prisma Client, and seed the deterministic
+development dataset:
 
-This is not a race. We are not timing you against other candidates, and submitting early scores nothing extra. Twelve hours is a size guide so you know how much to attempt — pace yourself, stop when you're tired, and spend some of that time thinking and documenting, not only typing code.
+```bash
+npx prisma migrate deploy
+npm run prisma:generate
+npm run prisma:seed
+```
 
-## Pick any stack you like
+Run the client and server in separate terminals:
 
-Use any language, any framework, any UI library, any ORM, and any database access approach you want. We have no house stack, and no stack scores better than another — this round is not a test of whether you know particular tools.
+```bash
+npm run dev:server
+npm run dev:client
+```
 
-Use whatever you are fastest and most confident in. Time spent learning something new to impress us is time not spent on the ten goals above, and it will show.
+The server defaults to port 3001 and the Vite client defaults to port 5173. The client API base can
+be configured with `VITE_API_BASE_URL` when the API is not on its default local address.
 
-## Using AI is allowed and encouraged
+## Verification
 
-Use AI tools however you want — to scaffold code, debug a stuck problem, write tests, draft documentation, or anything else that helps you move faster. A few things to know about how we treat it:
+From the repository root:
 
-- We do not penalise AI use, and we make no attempt to detect it.
-- We care about whether you understood, directed and verified the output — not about who or what produced the first draft of it.
-- `docs/ai-prompts.md` must contain the prompts you actually used, including the ones that produced bad output and what you changed afterwards. If you used no AI at all, say so here and describe how you worked instead — that is assessed the same way.
-- Submitting generated code you cannot explain is the single most common way candidates fail this round.
+```bash
+npm test
+npm run typecheck
+npm run build
+npm run prisma:validate
+npm run prisma:generate
+npx prisma migrate status
+```
 
-You are accountable for everything in your submission. If a reviewer points at a piece of code and asks why it's there, or why it works the way it does, "the AI wrote it" is not an answer.
+The project includes authentication, course, catalogue, enrollment, lesson, learner-progress,
+comment, activity, alert, lifecycle, and export coverage. PostgreSQL-backed integration tests require
+a configured database.
 
-## Use git properly
+## Deployment
 
-Publish to a public GitHub repository, and commit incrementally as the work actually happens — after each meaningful step, not in one pass at the end.
+The frontend and backend run as separate Render services. The frontend is available at
+[https://course-host-frontend.onrender.com/](https://course-host-frontend.onrender.com/), and the
+backend API is available at `https://course-host-d87j.onrender.com`. The backend connects to
+PostgreSQL through environment configuration, including `DATABASE_URL`, and uses the configured
+frontend origin for credentialed CORS.
 
-A repository whose entire history is a single "initial commit" containing a finished app scores zero on git history, and it colours how we read everything else in your submission, however good the app itself is. Your history is how we see the order you built in, where you got stuck, and how the design changed along the way. If it isn't there, we can't assess it, and we won't assume the best.
+The deployed login flow uses secure HTTP-only cross-site session cookies. The browser must allow the
+required cross-site cookie behavior for sessions to persist. Render services may cold-start after
+inactivity.
 
-## What you must commit
+## Known Limitations and Trade-offs
 
-Alongside your code, commit these five files under `docs/`. Your zip includes a stub for each with the questions it needs to answer — fill them in as you go, not from memory at the end.
+The backend currently uses the process-local `express-session` MemoryStore. This is suitable for the
+current single-instance/demo deployment, but restarting the backend loses active sessions and
+multiple backend instances cannot share session state. A persistent shared session store is the
+necessary improvement before horizontal scaling.
 
-| File | What it must answer |
-|------|----------------------|
-| `docs/architecture.md` | What the moving pieces are, how they talk to each other, where each one runs, the request path for one representative user action end to end, and what you decided not to build. |
-| `docs/schema.md` | Every table's columns and types, which relationships are one-to-many versus many-to-many, which constraints live in the database versus the application, what you deliberately denormalised, and what would break first at 100x the data. |
-| `docs/plan.md` | How you split the work into sessions, what order you built in and why, what you estimated versus what it actually took, and what you cut when you ran short. |
-| `docs/decisions.md` | At least five real decisions — what you chose, what you rejected, and why — including at least one you later reversed. |
-| `docs/ai-prompts.md` | The prompts you actually used, in order, grouped by what you were trying to do, including at least one that produced something wrong and what you did about it. |
+Progress, course state, enrollment counts, dashboard metrics, and alert eligibility are derived or
+queried from relational data rather than maintained by separate analytics infrastructure. Optional
+features such as quizzes, certificates, prerequisites, video tracking, ratings, learning paths,
+downloadable resources, and email digests are outside the assignment scope.
 
-## Host it for free
+## Further Documentation
 
-## Local development seed
+- [docs/architecture.md](docs/architecture.md): deployed topology, request flow, and system boundaries.
+- [docs/schema.md](docs/schema.md): complete Prisma data model, constraints, relationships, and scale analysis.
+- [docs/decisions.md](docs/decisions.md): major engineering decisions and trade-offs.
+- [docs/plan.md](docs/plan.md): implementation phases, estimates, actual effort, scope cuts, and final status.
+- [docs/ai-prompts.md](docs/ai-prompts.md): AI prompts, implementation work, reviews, and corrections.
 
-With a local PostgreSQL `DATABASE_URL` configured and migrations applied, run `npx prisma db seed` to create or refresh the two deterministic **development-only** instructor accounts. The seed is idempotent, does not delete existing data, and refuses to run when `NODE_ENV=production`.
+## Repository
 
-| Role | Email | Development-only password |
-|---|---|---|
-| Instructor | instructor.a@coursehost.local | CourseHostDev123! |
-| Instructor | instructor.b@coursehost.local | CourseHostDev123! |
-
-These credentials are only for local API/demo testing. Never use them in a deployed production environment.
-
-Deploy the whole thing somewhere reachable by URL, using free tiers only.
-
-One combination that works, if you would rather not decide:
-
-- **Database** — a managed service such as Supabase.
-- **Server-side code** — Render.
-- **Browser-side code** — Vercel.
-
-Deploy in that order: create the database first, give the server its connection details as environment variables, then point the browser-side part at the server's public URL.
-
-This is one option, not a requirement. Any free host is equally acceptable — everything on a single provider, one virtual machine, a container platform, a static host with serverless functions. The choice earns and loses nothing.
-
-Requirements:
-
-- A working live URL.
-- Seeded with enough demo data to show the system doing something, not an empty shell.
-- Demo credentials for every role recorded in `SUBMISSION.md`.
-- Connection strings, keys and passwords kept in environment variables, never in the repository.
-- Free tiers often sleep when idle and can take a minute or more to wake. Note it in `SUBMISSION.md` if yours does, so a slow first load is not read as a broken deployment.
-- If you cannot get it hosted, submit anyway and record in `SUBMISSION.md` what you tried and where it broke.
-
-## How to submit
-
-Send us:
-
-- The URL of your public GitHub repository.
-- The URL of your live, deployed application.
-- Your completed `SUBMISSION.md`, committed to the repository.
-
-That's the whole submission. Nothing else to prepare, no separate form.
-
-## What happens next
-
-If your submission clears the bar, we'll set up a short call. We will ask about specific decisions we can see in your repository and its history — why you modelled something a particular way, what a certain commit was fixing, what you'd change if you kept going.
-
-We're telling you this now because it should change how carefully you document as you go. Write `docs/decisions.md` for a version of yourself who has to explain it three weeks from now.
-
-## Scope
-
-The 10 goals stated in this brief are the cutoff. Meet all 10, solidly, and you have a complete submission.
-
-Stretch ideas are optional. They exist for candidates who finish the 10 with time left and want to keep building — they are never required, and they do not make up for a goal you didn't hit. Doing 8 goals well beats doing 10 goals badly. If time is short, finish fewer goals properly rather than leaving all ten half-done.
+[https://github.com/Mayank-Sankhwar/course-host](https://github.com/Mayank-Sankhwar/course-host)

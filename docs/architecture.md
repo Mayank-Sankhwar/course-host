@@ -1,200 +1,191 @@
 # Architecture
 
-## Enrolled-learner progress export (confirmed)
+CourseHost is a TypeScript monorepo with a React/Vite frontend, an Express/TypeScript API, Prisma persistence, and PostgreSQL. In deployment, the frontend and backend run as separate Render services and communicate over credentialed HTTPS requests.
 
-`GET /api/courses/:courseId/enrollments/export.csv` is an instructor-only, session-owner-scoped download. It reads all course enrollments (not the paginated learner-list subset), current lesson IDs, and their progress facts, then reuses the learner progress calculation before generating `text/csv` on the server. It is read-only: no progress, course activity, enrollment, alert, or activity-log write occurs.
+## 1. System components and communication
 
-The CSV columns are `learner_email`, `progress_state`, `completed_lessons`, `total_lessons`, and `completion_percentage`. RFC-style quoting doubles embedded quotes and quotes commas/newlines; an apostrophe prefixes formula-leading cell values (`=`, `+`, `-`, `@`) to protect spreadsheet consumers. The deterministic, identifier-only attachment name is `course-progress-{courseId}.csv`, avoiding title-derived filename handling. Owner exports remain available for DRAFT, PUBLISHED, and ARCHIVED courses because README preserves their historical enrollment records and does not restrict export status.
+The main moving pieces are:
 
-## Role-specific application integration (confirmed)
+- **Browser and React client:** The client renders role-specific instructor and learner workflows, sends requests through typed API modules, and displays server responses. It does not connect directly to PostgreSQL or decide authorization.
+- **Express API:** The backend exposes authentication, course/lifecycle, lesson, catalogue, enrollment, learner-progress, comment, activity/alert, dashboard, and progress-export routes.
+- **Authentication and authorization middleware:** `express-session` manages the session cookie; `requireAuth` reloads the authenticated user from the repository and `requireRole` enforces the required role. Services then apply ownership, enrollment, course-status, and lesson-access rules.
+- **Service and repository layers:** Services implement business rules and transaction boundaries. Repositories and Prisma queries persist and retrieve domain records.
+- **Prisma and PostgreSQL:** Prisma maps the TypeScript server to the relational schema. PostgreSQL stores users, courses, lessons, enrollments, lesson progress, comments, activity history, course activity, and alert dismissals, along with foreign keys, indexes, and uniqueness constraints.
 
-`GET /api/auth/me` establishes the UI session, then the React shell renders role-appropriate navigation. Instructors use Dashboard, Courses, and Activity/Alerts; learners use Catalogue and My Courses. The frontend only chooses what to display—the session-backed API continues to enforce roles, ownership, enrollment, visibility, progress, and lifecycle rules.
-
-The instructor dashboard is a small owner-scoped read model: headline metrics, enrollments by course/progress state, and eight-week completion trend are calculated in PostgreSQL through `GET /api/dashboard`. Course detail reuses the existing typed API clients in metadata, lessons, learners, activity/alerts, and discussion tabs. The learner catalogue retains its server-side query, filtering, sorting, total and pagination; My Courses and lesson progress always refresh from server responses.
-
-## Activity history, progress activity, and alerts (confirmed)
-
-Course/lesson creation and edits, publish/archive/restore transitions, and comment creation write immutable `ActivityLog` records with the actor derived from the authenticated session. Only the owning instructor can retrieve a course log.
+Production topology:
 
 ```text
-Learner start/complete changes progress
-  ↓ (same transaction)
-CourseActivity(learnerId, courseId).lastProgressAt upsert
-  ↓
-Instructor activity/alerts request
-  ↓
-PostgreSQL filters PUBLISHED + IN_PROGRESS + lastProgressAt < server-now-minus-14-days
-```
-
-README defines inactivity as no further **progress** for more than fourteen days, not a page or lesson visit. Idempotent progress requests, catalogue, comments, and read requests do not update it. Archive excludes active alerts without deleting activity; restore leaves timestamps unchanged. Dismissal is a persisted marker, removed only by later real progress so a new inactive period can surface. Ping and learner notifications are not implemented because README does not require them.
-
-## Confirmed
-
-The project is an npm-workspaces TypeScript monorepo: React/Vite in `apps/client`, Express in `apps/server`, and Prisma/PostgreSQL schema in `prisma`. The server provides health, authentication, instructor course and lesson management, course lifecycle, enrollment/progress, catalogue, comments, activity/alerts, dashboard, and progress-export routes. The client is a deliberately small role-specific instructor and learner interface.
-
-The database boundary is now designed as:
-
-```text
-Frontend
-  ↓
-Backend/API
-  ↓
-Service and business-rule layer
-  ↓
+Browser
+  |
+  | HTTPS + credentialed API requests
+  v
+Render frontend: React/Vite client
+  |
+  | HTTPS API requests
+  v
+Render backend: Express/TypeScript API
+  |
+  +--> express-session MemoryStore and HTTP-only session cookie
+  |
+  v
+Services and repositories
+  |
+  v
 Prisma
-  ↓
+  |
+  v
 PostgreSQL
 ```
 
-Prisma owns persistence mapping and database constraints. PostgreSQL holds the relational core, including foreign keys and uniqueness. The initial migration is applied to the configured local development PostgreSQL database.
+The deployed frontend is `https://course-host-frontend.onrender.com/`. The deployed backend is
+`https://course-host-d87j.onrender.com`. `CLIENT_ORIGIN` identifies the frontend origin; backend
+CORS allows that configured origin and credentials, so the browser can send the HTTP-only session
+cookie with protected API requests.
 
-Authentication now follows this request path:
+## 2. Where each component runs
 
-```text
-React auth form / API client
-  ↓ (credentialed fetch)
-Authentication API
-  ↓ (Argon2id verify and session regeneration)
-HTTP-only signed session cookie
-  ↓ (next request)
-requireAuth loads server-side user identity
-  ↓
-requireRole verifies stored role
-  ↓
-Ownership/enrollment business authorization
-  ↓
-Prisma / PostgreSQL
-```
+### Production
 
-The cookie carries only a session identifier; the in-memory development session stores only a user ID. `requireAuth` reloads safe user data from the repository on each protected request, so roles and identity never come from the frontend. The server requires a 32+ character `SESSION_SECRET`; production also refuses to start without `CLIENT_ORIGIN`. Session cookies are `HttpOnly`, `SameSite=Lax`, seven-day cookies and use `Secure` in production. CORS permits only `CLIENT_ORIGIN` and credentials, never wildcard origin with credentials.
+Render hosts the React/Vite frontend and a separate Express/TypeScript backend service. PostgreSQL
+provides persistent relational storage and is connected through the backend's `DATABASE_URL`. The
+frontend and backend have separate origins. The backend restricts CORS to `CLIENT_ORIGIN`, and the
+client uses credentialed requests. In production, the session cookie is HTTP-only, secure, and
+cross-site compatible; authentication state is carried by that cookie.
 
-Instructor course requests now follow this path:
+The current backend session store is the process-local `express-session` MemoryStore. It is part of
+the deployed implementation and is suitable for the current single-instance/demo arrangement.
 
-```text
-Minimal instructor course UI
-  ↓
-Course API
-  ↓
-requireAuth → requireRole(INSTRUCTOR)
-  ↓
-Course ownership check / authenticated instructor query scope
-  ↓
-Course validation and server-owned DRAFT status
-  ↓
-Prisma → PostgreSQL
-```
+### Local development
 
-Course creation derives `instructorId` from `request.authUser.id`; it never accepts an ownership ID or initial status from the browser. Read/update operations load the requested course and return 403 for an existing course owned by another instructor, while a missing course returns 404. List queries always apply the instructor scope in Prisma before optional search/category/status filters, whitelisted sorting, and database-level pagination.
-
-Instructor lesson management follows the same ownership boundary:
+The client runs through the Vite development server and the backend through `tsx watch`; the two
+processes communicate using the configured client origin and API base URL. PostgreSQL is configured
+through `DATABASE_URL`. The repository uses Prisma migrations, client generation, and the explicit
+development seed:
 
 ```text
-Instructor lesson manager
-  ↓ (complete ordered lesson IDs for reorder)
-Lesson API
-  ↓
-requireAuth → requireRole(INSTRUCTOR) → course ownership check
-  ↓
-Transactional lesson repository
-  ↓
-Prisma → PostgreSQL
+npx prisma migrate deploy
+npm run prisma:generate
+npm run prisma:seed
+npm run dev:server
+npm run dev:client
 ```
 
-`Lesson.id` is permanent identity; `position` is only instructor-defined display order. New lessons append at the end. Delete and reorder use serializable transactions and first move affected positions above the current range before assigning contiguous final positions, preserving the database unique `(courseId, position)` constraint. Deleting a lesson relies on the existing foreign-key cascade to remove only that lesson's `LessonProgress` records.
+The frontend and backend are normally run in separate terminals. Tests use Vitest and Supertest,
+with PostgreSQL-backed integration coverage where configured.
 
-Course lifecycle is a separate server-side command boundary, rather than part of generic metadata editing:
+## 3. Representative request: learner completes a lesson
+
+A learner completing a lesson follows this path:
 
 ```text
-POST /api/courses/:courseId/publish | archive | restore
+Learner clicks the completion action
   ↓
-requireAuth → requireRole(INSTRUCTOR)
+React sends a credentialed POST request
   ↓
-Serializable lifecycle transaction: load course, verify ownership/status,
-verify a lesson exists before publishing, conditionally update status
+Express receives the request and session middleware resolves the session
   ↓
-Prisma → PostgreSQL
+requireAuth and requireRole verify the authenticated learner
+  ↓
+The learner service verifies enrollment and published-course access
+  ↓
+The service verifies that the lesson belongs to the course
+  ↓
+The service rejects completion if the enrollment is still NOT_STARTED
+  ↓
+Prisma updates LessonProgress and derives course progress in PostgreSQL
+  ↓
+The same transaction updates CourseActivity for real progress changes
+  ↓
+The API returns lesson progress, course progress, and enrollment state
+  ↓
+React refreshes lesson/course data and the displayed progress
 ```
 
-The implemented transitions are `DRAFT → PUBLISHED`, `PUBLISHED → ARCHIVED`, and `ARCHIVED → PUBLISHED`. The conditional update prevents concurrent requests from silently overwriting a transition. Archive and restore modify only `Course.status`; they do not alter related lessons, enrollments, or lesson-progress records. The minimal course manager displays the relevant Publish, Archive, or Restore action and refreshes server state after success.
+The learner identity comes from the server-side session, not the request body. The service does not
+trust client-provided state or timestamps. Completion must follow `NOT_STARTED → IN_PROGRESS →
+COMPLETED`; starting a lesson creates the server-timestamped in-progress fact first. Course state
+and percentage are derived from the current lessons and progress facts rather than accepted from the
+browser.
 
-The full learner catalogue extends the existing `GET /api/available-courses` route:
+## 4. Important architectural boundaries
 
-```text
-Learner catalogue controls
-  ↓ query parameters only
-requireAuth → requireRole(LEARNER)
-  ↓
-PostgreSQL visibility filter: status = PUBLISHED
-  ↓
-Search/category/instructor filters → relation-count ordering → skip/take
-  ↓
-Prisma count query and page query
-  ↓
-One page plus total/totalPages returned to React
-```
+### Authentication and authorization
 
-The route accepts `search`, `category`, `instructorId`, `sort`/`sortBy`, `direction`/`sortOrder`, `page`, and `limit`. Filters, case-insensitive title/description search, enrollment-count ordering, and pagination execute in PostgreSQL through Prisma; the browser never receives the complete catalogue. Learners are always restricted to published courses—even if they supply a draft/archived status query—and `instructorId` is only a filter over that visible dataset. Catalogue entries expose safe instructor ID/email and a relation-derived `enrollmentCount`, never enrollment rows.
+Signup creates learners only. Passwords are hashed with Argon2id. Login regenerates a signed
+`express-session` session whose cookie is HTTP-only and contains only a session identifier; protected
+requests reload the current user from the server-side repository. `requireAuth` handles authentication
+and `requireRole` handles role checks. Ownership and enrollment relationships provide the remaining
+authorization boundary, so frontend route state, IDs, and roles cannot grant access.
 
-The established instructor `GET /api/courses` list uses the same bounded database filtering/pagination mechanics. It returns only the session instructor's own draft, published, and archived courses; an `instructorId` query cannot change that ownership scope. Both lists default to `createdAt DESC, id DESC`; title, creation date, and enrollment count support a deterministic `id DESC` secondary order.
+### Course ownership and lifecycle
 
-Learner enrollment and progress now follow this server-enforced path:
+Instructor course creation derives `instructorId` from the authenticated session and always creates a
+draft. Instructor list queries are scoped to that instructor, and course/lesson mutations verify
+ownership server-side. Lifecycle commands are separate from metadata `PATCH` operations and implement
+`DRAFT → PUBLISHED`, `PUBLISHED → ARCHIVED`, and `ARCHIVED → PUBLISHED`. Publishing checks that a
+lesson exists. Archive and restore change course status without deleting lessons, enrollments,
+progress, comments, or activity history.
 
-```text
-Learner UI
-  ↓ (credentialed fetch)
-requireAuth → requireRole(LEARNER)
-  ↓ (session-derived learner ID)
-Enrollment lookup / published-course access check
-  ↓
-Course lessons ordered by position and LessonProgress keyed by lesson ID
-  ↓
-Derived course progress from current lessons and timestamp facts
-  ↓
-Prisma → PostgreSQL
-```
+### Lessons and progress
 
-`POST /api/courses/:courseId/enroll` creates a learner's own enrollment only if the course is currently `PUBLISHED`. `GET /api/me/courses` reads only the authenticated learner's enrollments; a query parameter never supplies learner identity. Learner lesson/progress routes require both that enrollment and a currently published course. Archive blocks learner lesson/progress access but preserves the enrollment and all progress records; restored courses resume with those records intact.
+Lesson IDs are permanent; mutable positions control ordered display. Lesson creation appends and
+reordering uses a complete lesson ID set inside a serializable transaction with temporary positions.
+Deleting a lesson preserves the rest of the course and cascades only its lesson-progress records.
+Progress uses `startedAt` and `completedAt` timestamp facts. The service enforces the required start
+before completion, and course progress is calculated from the current lesson set, so reordering does
+not remap progress and additions/deletions are reflected naturally.
 
-Lesson progress has no client-provided state or timestamp input. Start creates a `(enrollmentId, lessonId)` record only when absent; completion is rejected unless the enrollment is already `IN_PROGRESS`, and otherwise adds `completedAt` to an in-progress record. Reopening a completed lesson leaves it completed. The service calculates course state and percentage from the current lesson IDs, so reorder does not change progress, deletion removes only its cascaded progress, and a newly added lesson is naturally `NOT_STARTED`.
+### Catalogue
 
-Instructor-managed enrollment follows the same server-owned identity boundary:
+The learner and instructor course lists use Prisma-side search, category/status/instructor filters,
+whitelisted title/creation-date/enrollment-count sorting, deterministic tie-breaking, pagination,
+and total counts. Learners are restricted to published courses, while instructor lists are scoped to
+the authenticated instructor. The browser receives only the requested page and never receives the
+complete catalogue for client-side filtering.
 
-```text
-Instructor form or CSV upload
-  ↓
-requireAuth → requireRole(INSTRUCTOR)
-  ↓
-session-derived instructor → owned, PUBLISHED course check
-  ↓
-normalized learner email → user/role lookup → Enrollment create
-  ↓
-PostgreSQL unique (learnerId, courseId)
-```
+### Enrollment
 
-`POST /api/courses/:courseId/enrollments` accepts only `{ email }`. The instructor UI accepts either pasted emails or a CSV file, normalizes pasted/uploaded text by trimming, lowercasing, splitting common delimiters, ignoring blanks, and deduplicating before sending it through the same multipart bulk endpoint. The endpoint accepts a multipart CSV with one `email` column (header optional), up to 1,000 nonblank rows and 256 KiB. CSV rows are parsed as untrusted text, normalized with the same trim/lowercase rule as authentication, and processed independently so an invalid, missing, duplicate, or instructor row does not roll back valid rows. Each row receives `ADDED`, `ALREADY_ENROLLED`, `LEARNER_NOT_FOUND`, `NOT_A_LEARNER`, `INVALID_EMAIL`, or `DUPLICATE_IN_FILE`; first CSV occurrence is authoritative and later duplicates get `DUPLICATE_IN_FILE`.
+Learners self-enroll using session-derived identity and only into published courses. Instructors can
+enroll existing learners into their owned published courses by normalized email. Bulk enrollment is
+bounded, accepts CSV input, processes rows independently, and returns per-row results; the client can
+also normalize pasted emails and send them through the same bulk endpoint. Database uniqueness on
+`(learnerId, courseId)` protects enrollment integrity under concurrency.
 
-`GET /api/courses/:courseId/enrollments` is owner-only, paginated, and returns safe learner ID/email plus enrollment data. It is intentionally available for archived owned courses to inspect preserved historical enrollment; creating individual or bulk enrollments is limited to published courses, matching the README’s active-course enrollment rule. New enrollment creates no `LessonProgress` rows.
+### Activity, comments, alerts, and dashboard
 
-The learner course experience uses the existing own-enrollment and lesson/progress routes. Selecting an enrolled course renders server-ordered lessons, their position/state, the selected lesson's stored material, and the current server-derived course progress. Opening a lesson calls the existing start command; completing it refetches server progress. An archived enrollment remains listed, but active learner lesson and discussion access are server-blocked with the archived-course message.
+Comments are course-level and authorize the owning instructor or an enrolled learner according to
+course status; authors come from the session. Activity logs are append-only and server-authored.
+Real learner progress updates one `CourseActivity` timestamp per learner/course in the same
+transaction. Instructor alerts query strict-more-than-14-day inactivity for in-progress learners and
+use persistent dismissal checkpoints that are cleared by later real progress. The instructor
+dashboard is an owner-scoped read model for totals, enrollment breakdowns, and the eight-week
+completion trend.
 
-Course-level discussion is a separate, scoped resource:
+### Progress export
 
-```text
-GET/POST /api/courses/:courseId/comments
-  ↓
-requireAuth → session user and stored role
-  ↓
-Instructor ownership OR learner enrollment + PUBLISHED status
-  ↓
-Prisma Comment(courseId, authorId) → PostgreSQL
-```
+The instructor progress export is an owner-only server endpoint that reads all course enrollments and
+reuses the current derived-progress calculation. It returns a stable set of progress columns with
+CSV quoting and formula-leading value protection; it does not expose passwords, sessions, or other
+credential data.
 
-Comments are never lesson-specific. Their author comes exclusively from the authenticated session; the API returns only safe author identity, comment body, and timestamp. Comments are ordered `createdAt ASC, id ASC`. Owners can review existing archived discussion, but archived courses reject all new comments; learner discussion access follows the same archived restriction as lessons. Restore makes valid learner discussion available again without recreating comments.
+## 5. What I deliberately did NOT build
 
-## Remaining operational work
+I left quizzes, certificates, prerequisite courses, video tracking, ratings and reviews, learning
+paths, downloadable resources, and email digests out of scope. They were not required for the core
+assignment and would require additional domain models, business rules, and in some cases external
+integrations or background infrastructure. I prioritized the required authorization, lifecycle,
+enrollment, progress, catalogue, activity, dashboard, comments, and export flows instead.
 
-The current `express-session` MemoryStore is intentionally development-only and must be replaced
-with persistent session storage before horizontally scaled production deployment. Deployment and
-production hosting are not part of the verified local implementation. Optional stretch features such
-as quizzes, certificates, prerequisites, video tracking, ratings, learning paths, downloadable
-resources, and email digests remain out of scope.
+## 6. Current limitations and scaling considerations
+
+### Session storage
+
+The backend currently uses `express-session`'s process-local MemoryStore. Active sessions are held in
+backend process memory, so restarting the backend loses them and multiple backend instances cannot
+share them. This is acceptable for the current single-instance/demo deployment, but a persistent
+shared session store is required before horizontal scaling.
+
+The application deliberately derives progress, course state, enrollment counts, dashboard metrics,
+and alert eligibility from relational data instead of introducing separate analytics infrastructure.
+That keeps the current system compact and authoritative, while a larger deployment may eventually
+need dedicated operational observability and scaling work.

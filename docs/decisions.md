@@ -1,307 +1,104 @@
 # Decisions
 
-## 50. Server-side whole-course progress export
+## 1. Course lifecycle is explicit and preserves history
 
-- **Chose:** An owner-only CSV endpoint that uses the existing current-lesson derived-progress helper and exports all enrollments, regardless of normal list pagination or course lifecycle status.
-- **Rejected:** Browser-side CSV generation, a second progress algorithm, status-based historical export denial, or one progress query per learner.
-- **Why:** README requires the complete enrolled-learner progress export. Reusing the existing formula preserves delete/add/reorder semantics and bulk Prisma reads avoid N+1 query behavior.
+- **Chose:** I modeled courses with the `DRAFT`, `PUBLISHED`, and `ARCHIVED` `CourseStatus` enum and exposed explicit instructor-only `publish`, `archive`, and `restore` commands. New courses are always created as drafts, and publishing requires an existing lesson.
+- **Rejected:** Hard deletion, free-form status text, arbitrary status changes through `PATCH`, or letting the client choose the initial status.
+- **Why:** Archiving must preserve lessons, enrollments, progress, comments, and activity history. Explicit commands make the small lifecycle graph and its ownership/status checks visible and enforceable in serializable transactions.
 
-## 51. Stable safe CSV representation
+## 2. Lesson identity is permanent and ordering is transactional
 
-- **Chose:** `learner_email`, `progress_state`, `completed_lessons`, `total_lessons`, and `completion_percentage`, RFC-style quoting, and apostrophe protection for formula-leading values.
-- **Rejected:** Password or session fields, raw comma concatenation, title-based attachment filenames, and unescaped spreadsheet formulas.
-- **Why:** README gives no column names, so these are minimal useful values; the escaping keeps records structurally valid and reduces CSV-injection risk.
+- **Chose:** I kept a permanent `Lesson.id`, treated `position` as mutable per-course display order, appended new lessons, and made reorder accept the complete lesson ID set. Delete and reorder use transactions and temporary non-conflicting positions before assigning contiguous final positions.
+- **Rejected:** Using array indexes as identity, recreating lessons during reorder, accepting client-selected creation positions, partial reorder payloads, or independent position updates.
+- **Why:** Progress must survive content edits and reordering. The unique `(courseId, position)` constraint must remain valid even during a failed or concurrent reorder. Server-side final-lesson protection also keeps a course structurally usable.
 
-## 48. Role-specific shell, server-backed UI state
+## 3. Lesson progress is represented by timestamp facts
 
-- **Chose:** One minimal React shell selected from `/api/auth/me`, with instructor and learner navigation, typed API clients, and local component state.
-- **Rejected:** localStorage roles, client authorization, duplicated fetch code, Redux/Zustand/React Query, or a UI framework.
-- **Why:** The existing authenticated backend remains the security boundary; the application stays understandable and dependency-light while all important data comes from existing server APIs.
+- **Chose:** I used `startedAt` and `completedAt` on `LessonProgress` instead of a redundant lesson-status column. A missing row is `NOT_STARTED`, a started-only row is `IN_PROGRESS`, and a completed timestamp is `COMPLETED`; timestamps are written by the server.
+- **Rejected:** Client-provided state or timestamps, a second mutable status field, and silent timestamp/state manipulation through request bodies.
+- **Why:** The facts have one source of truth and cannot contradict a separate status value. The `(enrollmentId, lessonId)` record remains stable when lesson order changes.
+- **Later reversed:** I initially allowed a learner to move directly from `NOT_STARTED` to `COMPLETED`. Implementation and testing showed that this allowed an invalid progression, particularly for one-lesson courses. I changed the service and route behavior to reject `NOT_STARTED → COMPLETED`, added a regression test for the one-lesson case, and updated the learner UI to follow `Start → Complete → Completed`.
 
-## 49. Dashboard as an owner-scoped read model
+## 4. Course progress is derived from current lessons
 
-- **Chose:** A single authenticated instructor dashboard endpoint that calculates required metrics, breakdowns, and eight-week trend from existing Prisma tables.
-- **Rejected:** schema changes, browser aggregation of paginated data, or background analytics infrastructure.
-- **Why:** README requires the dashboard but the prior API surface had no way to retrieve it. The read-only query keeps values authoritative and scoped to the session instructor.
+- **Chose:** I calculate completed count, total count, percentage, and enrollment course state from the current lesson IDs and their `LessonProgress` facts, while retaining queryable enrollment state on `Enrollment` for server updates and dashboard queries.
+- **Rejected:** Persisted percentages or counts, array-index matching, and pre-creating progress rows for every not-started lesson.
+- **Why:** Adding or deleting lessons must immediately affect progress without a migration or mass update. This also keeps reordering independent from progress identity and preserves completed lessons when reopened.
 
-## 46. README-defined progress inactivity
+## 5. Uniqueness and referential integrity belong in the database
 
-- **Chose:** Course-specific `lastProgressAt`, updated only by real start/complete progress changes, with `IN_PROGRESS` learners inactive only when `lastProgressAt < now - 14 days`.
-- **Rejected:** The continuation brief's lesson-visit timestamp, frontend date arithmetic, enrollment-date inference, and a stored mutable `isInactive` flag.
-- **Why:** README is authoritative: it says no further *progress* for more than fourteen days. Exactly fourteen days is therefore not inactive; never-progressed enrollments do not gain invented alert dates.
+- **Chose:** I used database foreign keys, enum values, unique email, unique `(learnerId, courseId)` enrollment, unique `(enrollmentId, lessonId)` progress, and unique `(courseId, position)` lesson constraints, with deliberate cascade/restrict behavior.
+- **Rejected:** Client-only duplicate checks, pre-query-only concurrency protection, or a denormalized progress/count model that could drift from the relational records.
+- **Why:** PostgreSQL remains the final integrity boundary under concurrent requests. Cascading a deleted lesson or enrollment removes only its lesson-progress facts, while course history and learning records remain protected.
 
-## 47. Query-time alerts and immutable history
+## 6. Authorization is relationship-based and server-derived
 
-- **Chose:** Query-time inactive alerts filtered in PostgreSQL, one `(courseId, learnerId)` dismissal marker, and append-only server-authored activity logs.
-- **Rejected:** Creating alert rows on every page load, permanent dismissal, client-authored log actors/course IDs, pings, notifications, queues, or real-time services.
-- **Why:** This prevents duplicate alerts, allows a new alert after genuine later progress, keeps ownership/server identity authoritative, and implements only README-required behavior.
+- **Chose:** I derive identity and role from the authenticated server session, then authorize through instructor/course, learner/enrollment, lesson/course, and progress/enrollment relationships. List queries apply ownership or visibility predicates before user filters.
+- **Rejected:** Trusting IDs, roles, ownership, or learner identity from the frontend, local storage, or request bodies/query parameters.
+- **Why:** Knowing a course or lesson ID must not grant cross-instructor or cross-learner access. The same boundary protects course management, catalogue visibility, enrollment, lessons, progress, comments, activity, alerts, and exports.
 
-## 1. Course lifecycle is an enum, not deletion
+## 7. Authentication uses Argon2id and HTTP-only cookie sessions
 
-- **Chose:** `DRAFT`, `PUBLISHED`, and `ARCHIVED` `CourseStatus` values.
-- **Rejected:** Removing courses from the catalogue by hard deletion or free-form status text.
-- **Why:** Archive must preserve lessons, enrollments, progress, comments, and history.
+- **Chose:** I hash passwords with Argon2id and use signed `express-session` cookies containing only server-established session identity. Protected requests reload the user from the repository, and credentialed CORS is limited to the configured `CLIENT_ORIGIN`.
+- **Rejected:** Plaintext/reversible passwords, JWT or localStorage identity, wildcard credentialed CORS, and client-held roles.
+- **Why:** Browser JavaScript cannot read the HTTP-only cookie, and current server-side role data remains authoritative. Secure production cookies, a required session secret, and explicit origins establish a deliberate browser trust boundary.
 
-## 2. Lesson ID and display position are independent
+## 8. Public signup creates learners only
 
-- **Chose:** Permanent lesson ID plus a mutable, per-course unique `position`.
-- **Rejected:** Using order/index as identity or allowing duplicate positions.
-- **Why:** Reordering does not alter progress identity. The future reorder transaction uses temporary positions to satisfy the unique key safely.
+- **Chose:** I allow public signup only for `LEARNER` accounts and provision instructor accounts through the explicitly invoked development seed.
+- **Rejected:** Unrestricted public instructor registration or creating privileged users at server startup.
+- **Why:** A client-selected instructor role would be privilege escalation. The idempotent development seed provides repeatable demo/API instructors without weakening the public signup boundary.
 
-## 3. Lesson state comes from timestamps
+## 9. Catalogue querying stays server-side and bounded
 
-- **Chose:** `startedAt` and `completedAt` without a LessonProgress status enum.
-- **Rejected:** A redundant mutable lesson-status field.
-- **Why:** It prevents contradictory state and preserves the actual progress facts.
+- **Chose:** I extended the existing catalogue/list routes with database-side search, category/status/instructor filters, title/creation/enrollment-count sorting, deterministic ID tie-breaking, pagination, and total counts. Learners are restricted to published courses; instructor lists are restricted to the authenticated instructor's courses.
+- **Rejected:** A competing catalogue route, downloading all courses, React-side filtering/sorting/pagination, arbitrary `orderBy` values, or treating filter parameters as authorization.
+- **Why:** The browser receives only the requested page, while PostgreSQL applies visibility before filters and calculates authoritative totals. Relation-derived enrollment counts avoid stale denormalized counters.
 
-## 4. Enrollment stores queryable course state, derived by the server
+## 10. Course discussion is scoped and retained
 
-- **Chose:** `Enrollment.progressState`, `completedAt`, and `updatedAt`; service code will derive and transition them from current lessons/progress.
-- **Rejected:** Client-controlled progress state or stored percentage/counts.
-- **Why:** Course state is useful for queries, but lesson changes must be reflected from the true progress source.
+- **Chose:** I kept comments at course level using `Comment.courseId` and `authorId`, permitted enrolled learners on published courses and the owning instructor, and derived the author from the session. Comments are ordered deterministically and preserved across archive/restore.
+- **Rejected:** Lesson discussion threads, request-body author IDs, frontend-only participation checks, deleting archived discussion, or silently truncating text.
+- **Why:** The required discussion boundary is the course, and relationship authorization prevents impersonation. Archived learners lose active access while owners can review preserved history; server validation keeps comment limits consistent for every client.
 
-## 5. Enrollment and lesson-progress uniqueness are database rules
+## 11. Instructor enrollment uses normalized learner email
 
-- **Chose:** unique `(learnerId, courseId)` and `(enrollmentId, lessonId)` constraints.
-- **Rejected:** Client-only or pre-query-only duplicate checks.
-- **Why:** Database constraints remain correct under concurrency.
+- **Chose:** I require an owned published course for new instructor enrollment, normalize learner email by trimming and lowercasing, look up an existing learner, and rely on the enrollment uniqueness constraint for concurrency.
+- **Rejected:** Request-body instructor/learner IDs, automatic account creation, instructor-role enrollment, or adding learners to drafts and archives.
+- **Why:** Email matches the instructor workflow while server-derived identity and role checks prevent IDOR and role confusion. Historical enrollments remain listable after archive.
 
-## 6. Course-level comments only
+## 12. Bulk enrollment is bounded and reports each row
 
-- **Chose:** `Comment.courseId` and `authorId` with no lesson reference.
-- **Rejected:** Lesson discussion threads and a made-up 50-word rule.
-- **Why:** This matches the required scope; authorization belongs in the service layer.
+- **Chose:** I kept multipart CSV bulk enrollment synchronous, bounded to one optional `email` column, 1,000 rows, and 256 KiB. Each normalized row is processed independently and receives an actionable result, including duplicate-file results.
+- **Rejected:** Unbounded uploads, a separate bulk-history table, one transaction that rolls back valid rows, or silently discarding invalid/missing/duplicate addresses.
+- **Why:** Instructors get useful partial-success feedback without adding a spreadsheet or file-storage subsystem. The database remains the final boundary for duplicate enrollment races. The UI also accepts pasted emails, normalizes common delimiters, and sends them through this same bulk endpoint.
 
-## 7. Activity is preserved, not cascaded away
+## 13. Activity history and inactivity alerts are query-oriented
 
-- **Chose:** Restrict course deletion and set a deleted activity actor to null; `ActivityLog.details` is optional JSON.
-- **Rejected:** Cascading course/activity deletion or many speculative event tables.
-- **Why:** Course history is immutable and important, while a compact event enum remains extendable.
+- **Chose:** I use append-only, server-authored `ActivityLog` records for required course, lesson, lifecycle, enrollment, completion, and comment history. I track real learner progress in one `CourseActivity` row per learner/course, compute strict-more-than-14-day inactivity at query time, and persist one dismissal checkpoint in `AlertDismissal`.
+- **Rejected:** Editable/deletable history, client-authored actors, a mutable `isInactive` flag, treating visits as progress, storing every alert instance, permanent dismissal, pings, queues, or notification infrastructure.
+- **Why:** Activity and alert eligibility remain authoritative without duplicate alert rows or stale classifications. Later real progress deletes the dismissal so a new inactive period can surface, while archive hides active alerts without deleting history.
 
-## 8. Alerts are computed, dismissals persist
+## 14. The instructor dashboard is an owner-scoped read model
 
-- **Chose:** One `AlertDismissal` per course/learner, but no `Alert` table and no `CourseVisit` table.
-- **Rejected:** Permanently suppressing alerts, storing every alert instance, or treating a visit as progress.
-- **Why:** Comparing dismissal and progress timestamps allows a later inactivity period to reappear correctly.
+- **Chose:** I calculate dashboard totals, enrollment-by-course, enrollment-by-state, and the eight-week completion trend in one authenticated instructor endpoint using existing relational data.
+- **Rejected:** Browser aggregation of paginated data, a denormalized analytics schema, or background analytics infrastructure.
+- **Why:** The dashboard remains read-only, current, and scoped to the session instructor without introducing another source of truth or schema maintenance.
 
-## 9. Authorization is based on relationships and server identity
+## 15. Progress export is complete and spreadsheet-safe
 
-- **Chose:** Explicit instructor/course, learner/enrollment, lesson/course, and progress/enrollment foreign keys.
-- **Rejected:** Trusting IDs, roles, or ownership supplied by the frontend.
-- **Why:** Later services can scope every access to the authenticated user and prevent cross-instructor/cross-learner access.
+- **Chose:** I provide an owner-only server CSV export across all course enrollments, reusing current lesson-derived progress. It emits `learner_email`, `progress_state`, `completed_lessons`, `total_lessons`, and `completion_percentage` with deterministic identifier-based filenames, RFC-style quoting, and formula-leading value protection.
+- **Rejected:** Browser-side generation, a second progress algorithm, exporting only the paginated learner list, title-derived filenames, raw comma concatenation, or exposing password/session fields.
+- **Why:** The complete export remains consistent with add/delete/reorder progress semantics. Server-side escaping keeps rows structurally valid and reduces spreadsheet formula risks without changing the data model.
 
-## 10. Argon2id hashes passwords
+## 16. The UI uses a minimal role-specific React shell
 
-- **Chose:** `argon2` using Argon2id for `User.passwordHash`.
-- **Rejected:** Plaintext/reversible passwords and bcrypt without a compatibility need.
-- **Why:** Argon2id is a current password-hashing algorithm and runs successfully with the project’s Node.js setup.
+- **Chose:** I use one React shell selected from `/api/auth/me`, with role-specific navigation, typed API clients, local server-backed component state, and reusable course-detail modules for metadata, lessons, learners, activity, alerts, and discussion.
+- **Rejected:** Client authorization, localStorage roles, duplicated fetch mechanisms, a state-management library, or a new UI framework.
+- **Why:** The interface stays small and understandable while the backend remains the security boundary. Learner and instructor views refresh after server commands so displayed state reflects authoritative responses.
 
-## 11. Cookie sessions carry server-established identity
+## 17. Development remains explicit and operationally honest
 
-- **Chose:** Signed, HTTP-only `express-session` cookies with a server-side session containing only user ID; authentication reloads the user from the repository.
-- **Rejected:** JWT/localStorage tokens and client-held role/user identity.
-- **Why:** Browser JavaScript cannot read the cookie, and each protected request obtains current server-side role data. MemoryStore is documented as development-only.
-
-## 12. Public signup creates learners only
-
-- **Chose:** `/api/auth/signup` accepts only `LEARNER`; an attempted `INSTRUCTOR` role is rejected.
-- **Rejected:** Unrestricted public instructor registration.
-- **Why:** A client-selected instructor role would be privilege escalation. Instructor accounts must be provisioned through a controlled future operational path.
-
-## 13. Authentication and authorization use different status codes
-
-- **Chose:** 401 for missing/invalid session and 403 for an authenticated role mismatch.
-- **Rejected:** Returning 403 for every denied request or trusting frontend route state.
-- **Why:** Clients can distinguish login needs from permission limits without exposing passwords, hashes, or internals.
-
-## 14. Credentialed CORS is explicit
-
-- **Chose:** Configure one `CLIENT_ORIGIN` with credentials and production-only secure cookies.
-- **Rejected:** `Access-Control-Allow-Origin: *` with cookies or hard-coded deployment URLs.
-- **Why:** Cookies require a deliberate browser trust boundary that works for local development and configurable deployments.
-
-## 15. New courses are always drafts
-
-- **Chose:** The server explicitly writes `DRAFT` on creation and rejects request fields other than title, description, and category.
-- **Rejected:** Letting the client choose `PUBLISHED`/`ARCHIVED` or silently trusting a status field.
-- **Why:** Publishing requires lesson validation in a later phase; creation cannot bypass that lifecycle rule.
-
-## 16. Course ownership is enforced per request
-
-- **Chose:** Derive `instructorId` from authenticated identity, scope list queries by it, and return 403 when another instructor accesses a known course.
-- **Rejected:** Request-body/query ownership IDs or frontend-only filtering.
-- **Why:** It prevents cross-instructor access while still distinguishing a genuinely missing course (404) from an ownership violation (403).
-
-## 17. Metadata edits preserve lifecycle status
-
-- **Chose:** `PATCH` permits only title, description, and category; it rejects status/instructor/id fields.
-- **Rejected:** Combining edits with status transitions.
-- **Why:** Editing published or archived metadata must not silently alter lifecycle state.
-
-## 18. Instructor lists are database-paginated and deterministic
-
-- **Chose:** Prisma-filtered queries with bounded page size, total count, stable ID secondary order, and a `title`/`createdAt` sort whitelist.
-- **Rejected:** Browser-side filtering/pagination or arbitrary `orderBy` query values.
-- **Why:** Ownership stays server-enforced and pagination remains stable. Enrollment-count sorting is deferred until enrollment data exists.
-
-## 19. Development instructors are explicitly seeded
-
-- **Chose:** A manually invoked, idempotent Prisma seed upserts two local-development instructors.
-- **Rejected:** Public instructor signup or automatically creating privileged users when the server starts.
-- **Why:** Public signup remains learner-only to prevent privilege escalation; the seed is an explicit, development-only route to create repeatable API/demo accounts.
-
-## 20. Lesson identity is permanent; position is ordering only
-
-- **Chose:** Keep the existing permanent `Lesson.id` and update only `position` for reorder.
-- **Rejected:** Recreating lessons, using array index as identity, or treating position as a progress key.
-- **Why:** Future lesson progress references lesson IDs and must survive content edits, deletion of other lessons, and reordering.
-
-## 21. New lessons append; metadata updates cannot reorder
-
-- **Chose:** Create at next position and allow only title/content through normal lesson updates.
-- **Rejected:** Client-selected creation positions or accepting position/course/ID changes in metadata requests.
-- **Why:** It keeps ordering predictable and reserves all position changes for a fully validated reorder operation.
-
-## 22. A course cannot lose its final lesson
-
-- **Chose:** Server-side deletion rejects the final lesson; otherwise deletion normalizes positions to `1..N`.
-- **Rejected:** Frontend-only disablement, leaving ordering gaps, or allowing an empty formerly populated course.
-- **Why:** The course remains structurally usable and the invariant holds regardless of client behavior.
-
-## 23. Reorder receives the complete lesson ID set
-
-- **Chose:** The API accepts a complete ordered `lessonIds` array and verifies it exactly matches the course's current IDs.
-- **Rejected:** Individual untrusted position updates or partial reorder payloads.
-- **Why:** It rejects missing, duplicate, extra, and foreign-course IDs before positions change.
-
-## 24. Delete and reorder are serializable transactions
-
-- **Chose:** Temporarily move affected positions above the current maximum, then assign contiguous final positions inside a serializable Prisma transaction with retry for transactional conflicts.
-- **Rejected:** Independent updates that can transiently violate unique `(courseId, position)`.
-- **Why:** Partial failure cannot leave duplicate/gapped final order, and lesson IDs/progress links remain untouched during reorder.
-
-## 25. Lifecycle changes use explicit commands, not `PATCH`
-
-- **Chose:** Instructor-only `publish`, `archive`, and `restore` commands with server-checked expected states.
-- **Rejected:** Accepting arbitrary course-status values in generic metadata updates.
-- **Why:** The lifecycle has a small allowed graph and must not be bypassed by browser-provided status fields.
-
-## 26. Publishing requires an existing lesson at transition time
-
-- **Chose:** Count lessons inside the serializable publish transaction and reject an empty course with a conflict.
-- **Rejected:** A frontend-only check or publishing first and validating later.
-- **Why:** Concurrent browser requests cannot publish an empty draft, and the database state remains the authority.
-
-## 27. Archival preserves course records and learning history
-
-- **Chose:** Archive/restore update only `Course.status`.
-- **Rejected:** Deleting, recreating, or mutating lessons, enrollments, or lesson progress during lifecycle transitions.
-- **Why:** Existing learners retain their data and a restored course resumes with stable lesson identities and ordering.
-
-## 28. Learner catalogue visibility is a server query rule
-
-- **Chose:** The future learner catalogue will query only `PUBLISHED` courses before filtering, sorting, counting, and paginating.
-- **Rejected:** Sending all lifecycle states to the browser and hiding them client-side.
-- **Why:** Draft and archived material must never become visible through a manipulated client request.
-
-## 29. Learners self-enroll only into currently published courses
-
-- **Chose:** The learner endpoint derives the learner from the session and checks `Course.status` at enrollment time.
-- **Rejected:** Accepting a body `learnerId`, allowing draft/archive enrollment, or trusting the browser's view of course status.
-- **Why:** A known course ID must not allow cross-user enrollment or enrollment into unavailable material.
-
-## 30. Progress is a timestamp fact, not a client-set state
-
-- **Chose:** Start and complete commands write server timestamps; missing progress is `NOT_STARTED`, started-only is `IN_PROGRESS`, and completed is `COMPLETED`.
-- **Rejected:** A mutable request-body status/timestamp or a second lesson-state column.
-- **Why:** The storage model cannot contradict the derived state and completed lessons never regress when reopened.
-
-## 31. Learner progress is scoped by enrollment and stable lesson ID
-
-- **Chose:** Every learner progress read/write first resolves the session learner's enrollment and verifies the lesson belongs to that course.
-- **Rejected:** Enrollment IDs or lesson positions supplied by the client as authorization.
-- **Why:** It prevents learner IDOR attacks and keeps reorder independent from progress identity.
-
-## 32. Course progress is calculated from current lessons
-
-- **Chose:** Calculate completed/total/percentage and state from the current course lessons plus their `LessonProgress` rows.
-- **Rejected:** Persisted percentages, array-index matching, or creating rows for every not-started lesson.
-- **Why:** Adding a lesson naturally reduces a formerly complete course; deleting a lesson's cascaded progress no longer affects the result.
-
-## 33. The learner catalogue has one extended route
-
-- **Chose:** Extend authenticated learner `GET /api/available-courses` into the full catalogue.
-- **Rejected:** Adding another competing learner-catalogue endpoint.
-- **Why:** The existing route already represented published courses, so it is the clearest stable API contract.
-
-## 34. Catalogue visibility is enforced before user filters
-
-- **Chose:** Learner queries always include database `status = PUBLISHED`; instructor queries always include session-derived ownership.
-- **Rejected:** React-side hiding or treating `instructorId`/`status` as authorization input.
-- **Why:** Query parameters are filters, not proof of permission, so they cannot expose drafts, archives, or another instructor's data.
-
-## 35. Catalogue work remains server-side and bounded
-
-- **Chose:** Prisma `where`, `orderBy`, `skip`, `take`, and `count`, with maximum page size 50.
-- **Rejected:** Downloading all courses and using browser `filter`, `sort`, or `slice`.
-- **Why:** Filtered totals and page boundaries remain correct and the browser receives only the requested page.
-
-## 36. Enrollment count is relation-derived and sortable
-
-- **Chose:** Use Prisma's `Enrollment` relation `_count` for response values and PostgreSQL relation-count ordering.
-- **Rejected:** Fetching enrollments to count in JavaScript or adding a denormalized counter column.
-- **Why:** Enrollment remains the source of truth without stale counters or unnecessary schema maintenance.
-
-## 37. Catalogue ordering has deterministic ties
-
-- **Chose:** Default `createdAt DESC, id DESC`; title, creation date, and enrollment-count sorts use `id DESC` as a secondary key.
-- **Rejected:** Single-column ordering with unstable page boundaries.
-- **Why:** Pagination does not duplicate or omit equal-valued records between requests.
-
-## 38. Comments are course-level and retained
-
-- **Chose:** Use existing `Comment(courseId, authorId, content)` without a lesson foreign key.
-- **Rejected:** Per-lesson comment threads or deleting discussion when a course is archived.
-- **Why:** The assignment defines one course discussion, while archive/restore must preserve history.
-
-## 39. Discussion participation is relationship-authorized
-
-- **Chose:** Permit enrolled learners on published courses and the owning instructor; derive author identity from the session.
-- **Rejected:** Request-body author IDs, client role checks, or unrelated instructor/learner access.
-- **Why:** Course ID knowledge alone cannot expose discussion or create an impersonated comment.
-
-## 40. Comment text uses a deterministic server word limit
-
-- **Chose:** Trim text and count non-empty whitespace-separated tokens, with a 50-word and 2,000-character server limit.
-- **Rejected:** HTML-only validation, NLP word parsing, or silent truncation.
-- **Why:** The result is simple, predictable, and enforced for every client.
-
-## 41. Archived discussion is read-preserved but write-stopped
-
-- **Chose:** Preserve all comment rows; reject all new comments while archived. Learner reads are blocked with course access, while the owner can review the historic discussion.
-- **Rejected:** Deleting comments, letting active discussion continue, or recreating history on restore.
-- **Why:** It preserves history and matches archived learner-content access without losing instructor context.
-
-## 42. Instructor enrollment identifies learners by normalized email
-
-- **Chose:** Derive instructor identity from the session, verify database ownership, then find an existing learner by trimmed/lowercased email.
-- **Rejected:** Request-body learner/instructor IDs, automatic account creation, or instructor-role enrollment.
-- **Why:** The workflow matches instructor input while preventing IDOR, role confusion, and impersonation.
-
-## 43. Instructor enrollment is limited to published courses
-
-- **Chose:** Individual and bulk adds require an owned `PUBLISHED` course; the owner may still list historical enrollments after archive.
-- **Rejected:** Adding learners to drafts/archives or deleting/list-hiding historical enrollments.
-- **Why:** README describes instructor enrollment into active courses, while lifecycle preserves history.
-
-## 44. Bulk CSV results are independent and per row
-
-- **Chose:** Process each normalized CSV row separately and return a status for every submitted row; later duplicate-file rows are `DUPLICATE_IN_FILE`.
-- **Rejected:** One transaction that rolls back valid rows, silently discarding duplicate rows, or a CSV history table.
-- **Why:** Instructors receive actionable partial-success results and database uniqueness handles races safely.
-
-## 45. CSV upload is intentionally bounded
-
-- **Chose:** One optional `email` header, one email column, maximum 1,000 rows and 256 KiB.
-- **Rejected:** Unbounded uploads or a spreadsheet/file-storage subsystem.
-- **Why:** It keeps request work appropriate for a synchronous take-home API while accepting normal CRLF/LF, quoted values, and whitespace.
+- **Chose:** I keep schema changes in Prisma migrations, use an explicitly invoked idempotent development seed, document verified local commands and deployment configuration, and leave optional stretch features out of scope.
+- **Rejected:** Seeding at server startup, hiding operational limitations, claiming unverified deployment behavior as local verification, or adding speculative features before the required workflows were complete.
+- **Why:** Repeatable setup and honest verification make the take-home easier to inspect. The current `express-session` MemoryStore is suitable for a single-instance/demo deployment but should be replaced with persistent storage before horizontal scaling.
