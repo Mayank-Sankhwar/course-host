@@ -38,7 +38,7 @@ All seeded instructor accounts use:
 
 ### Learner accounts
 
-The first 20 seeded learner accounts are provided below.
+The first 10 seeded learner accounts are provided below.
 
 **Password:** `12345678l`
 

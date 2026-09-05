@@ -221,7 +221,7 @@ backend API is available at `https://course-host-d87j.onrender.com`. The backend
 PostgreSQL through environment configuration, including `DATABASE_URL`, and uses the configured
 frontend origin for credentialed CORS.
 
-The deployed login flow uses secure HTTP-only cross-site session cookies. The browser must allow the
+The deployed login flow uses secure, HTTP-only session cookies for credentialed cross-origin requests. The browser must allow the
 required cross-site cookie behavior for sessions to persist. Render services may cold-start after
 inactivity.
 
